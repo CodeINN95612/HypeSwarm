@@ -2,7 +2,9 @@
     "name": "HypeSwarm.Editor",
     "rootNamespace": "HypeSwarm.Editor",
     "references": [
-        "HypeSwarm.Shared"
+        "HypeSwarm.Shared",
+        "HypeSwarm.ClientOnly",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [
         "Editor"

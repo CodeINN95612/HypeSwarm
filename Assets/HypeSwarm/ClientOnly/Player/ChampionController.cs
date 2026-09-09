@@ -1,0 +1,220 @@
+using HypeSwarm.ClientOnly.Controls;
+using HypeSwarm.Shared.Movement;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+namespace HypeSwarm.ClientOnly.Player
+{
+    /// <summary>
+    /// Drives one champion from local input. The client half of movement: devices, a camera, a
+    /// collider, and a transform.
+    /// </summary>
+    /// <remarks>
+    /// All of the movement rules live in <see cref="CharacterMotor"/> in <c>Shared</c>. What remains
+    /// here is genuinely client work — turning a keyboard into a direction, a cursor into an aim
+    /// vector, and a displacement into a <c>CharacterController.Move</c> call. That division is not
+    /// tidiness: when this becomes networked (§10) the host has to run the same rules with no
+    /// camera and no mouse, and anything that leaked into this file would have to be rewritten then.
+    ///
+    /// <para>Movement is stepped in <c>Update</c>, not <c>FixedUpdate</c>. There is no rigidbody
+    /// here and none is planned (§11), so a fixed step would only add a frame of latency to the
+    /// thing the player is most sensitive to.</para>
+    /// </remarks>
+    [RequireComponent(typeof(CharacterController))]
+    public sealed class ChampionController : MonoBehaviour
+    {
+        [Header("Bindings")]
+        [SerializeField]
+        [Tooltip("The HypeSwarmControls asset. Must contain a Gameplay map with Move, Aim, and Dash.")]
+        InputActionAsset controls;
+
+        [SerializeField]
+        [Tooltip("Camera used to turn the cursor into a world position. Falls back to Camera.main.")]
+        Camera aimCamera;
+
+        [Header("Presentation")]
+        [SerializeField]
+        [Tooltip("Child transform rotated to face the aim direction. Separate from the root so that " +
+                 "facing never rotates the collider or the capsule the horde will query.")]
+        Transform visual;
+
+        [SerializeField]
+        [Tooltip("Optional marker placed where the cursor meets the ground.")]
+        Transform reticle;
+
+        [Header("Movement")]
+        [SerializeField]
+        MovementSettings movement = new MovementSettings();
+
+        [Header("Ground")]
+        [SerializeField]
+        [Tooltip("Downward acceleration. Only enough to hold the character on slopes and stairs — " +
+                 "there is no jump, and there is not going to be one.")]
+        float gravity = 30f;
+
+        CharacterController body;
+        GameplayInput input;
+        CharacterMotor motor;
+        float verticalSpeed;
+
+        /// <summary>
+        /// The simulation. Exposed so presentation and HUD can subscribe to its events.
+        /// </summary>
+        /// <remarks>
+        /// Built on first access rather than in <c>Awake</c>. Unity does not order <c>Awake</c>
+        /// between GameObjects, so a presentation component on a child that subscribed in its own
+        /// <c>OnEnable</c> would sometimes find no motor and sometimes find one — the kind of bug
+        /// that reproduces on one machine in five.
+        /// </remarks>
+        public CharacterMotor Motor => motor ?? (motor = new CharacterMotor(movement));
+
+        /// <summary>Where the cursor currently meets the ground, in world space.</summary>
+        public Vector3 AimPoint { get; private set; }
+
+        /// <summary>True while the cursor resolves to a real ground position.</summary>
+        public bool HasAimPoint { get; private set; }
+
+        void Awake()
+        {
+            body = GetComponent<CharacterController>();
+            Motor.Reset(MotionPlane.Flatten(transform.forward));
+            AimPoint = transform.position;
+
+            if (controls != null)
+            {
+                input = new GameplayInput(controls);
+            }
+            else
+            {
+                Debug.LogError(
+                    $"{name} has no controls asset assigned, so it will not respond to input.", this);
+            }
+        }
+
+        void OnEnable()
+        {
+            input?.Enable();
+        }
+
+        void OnDisable()
+        {
+            input?.Disable();
+        }
+
+        void OnDestroy()
+        {
+            input?.Dispose();
+        }
+
+        void OnValidate()
+        {
+            movement?.Validate();
+
+            if (motor != null)
+            {
+                motor.Settings = movement;
+            }
+        }
+
+        void Update()
+        {
+            var deltaTime = Time.deltaTime;
+            var camera = ResolveCamera();
+
+            var aim = UpdateAim(camera);
+            var move = input == null
+                ? Vector2.zero
+                : AimGeometry.CameraRelative(input.Move, camera == null ? 0f : camera.transform.eulerAngles.y);
+
+            var motionInput = new MovementInput(move, aim, input != null && input.ConsumeDashPressed());
+            var displacement = Motor.Step(motionInput, deltaTime);
+
+            ApplyMotion(displacement, deltaTime);
+            ApplyFacing();
+
+            // After the move, not before. The reticle hangs off the champion, so placing it first
+            // means the body then drags it along by exactly this frame's displacement — a lag that
+            // grows with speed and is at its worst mid-dash, which is when aim matters most.
+            PlaceReticle();
+        }
+
+        Camera ResolveCamera()
+        {
+            if (aimCamera == null)
+            {
+                aimCamera = Camera.main;
+            }
+
+            return aimCamera;
+        }
+
+        /// <summary>
+        /// Resolves the cursor to a world-plane aim direction, returning <see cref="Vector2.zero"/>
+        /// — "no opinion" — when it cannot. Holding the last facing is the right failure: snapping
+        /// to a default direction because the cursor crossed the horizon is worse than not turning.
+        /// </summary>
+        Vector2 UpdateAim(Camera camera)
+        {
+            HasAimPoint = false;
+
+            if (camera == null || input == null)
+            {
+                return Vector2.zero;
+            }
+
+            var screenPosition = input.AimScreenPosition;
+
+            if (!AimGeometry.TryGroundPoint(
+                    camera.ScreenPointToRay(screenPosition), transform.position.y, out var point))
+            {
+                return Vector2.zero;
+            }
+
+            AimPoint = point;
+            HasAimPoint = true;
+
+            return MotionPlane.DirectionBetween(transform.position, point);
+        }
+
+        void ApplyMotion(Vector2 displacement, float deltaTime)
+        {
+            verticalSpeed = body.isGrounded ? -2f : verticalSpeed - gravity * deltaTime;
+
+            var motion = MotionPlane.ToWorld(displacement);
+            motion.y = verticalSpeed * deltaTime;
+
+            var collisions = body.Move(motion);
+
+            // A dash that has run into a wall should end, not spend its remaining duration pressing
+            // into geometry. Without this the character sticks to the wall for the rest of the dash
+            // and the ability reads as having been eaten.
+            if (Motor.IsDashing && (collisions & CollisionFlags.Sides) != 0)
+            {
+                Motor.CancelDash();
+            }
+        }
+
+        void PlaceReticle()
+        {
+            if (reticle != null && HasAimPoint)
+            {
+                reticle.position = AimPoint;
+            }
+        }
+
+        void ApplyFacing()
+        {
+            if (visual == null)
+            {
+                return;
+            }
+
+            var facing = MotionPlane.ToWorld(Motor.Facing);
+
+            if (facing.sqrMagnitude > 0f)
+            {
+                visual.rotation = Quaternion.LookRotation(facing, Vector3.up);
+            }
+        }
+    }
+}
