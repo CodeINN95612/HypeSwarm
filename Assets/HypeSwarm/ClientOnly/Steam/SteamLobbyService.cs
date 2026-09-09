@@ -92,21 +92,79 @@ namespace HypeSwarm.ClientOnly.Steam
         }
 
         /// <summary>
+        /// Whether Steam's overlay is in this process. It is not injected into the Unity Editor, and
+        /// not into a build Steam did not launch — which is most of development.
+        /// </summary>
+        public static bool OverlayAvailable => SteamLifecycle.IsRunning && SteamUtils.IsOverlayEnabled();
+
+        /// <summary>
         /// Opens Steam's own invite dialog over the game. Using the overlay rather than a friend
         /// list of our own means invites, accepts, and the "join game" entry on a friend's profile
         /// all work without us implementing any of them.
         /// </summary>
+        /// <remarks>
+        /// <see cref="SteamFriends.ActivateGameOverlayInviteDialog"/> returns nothing and cannot
+        /// fail — with no overlay in the process it draws no dialog and says nothing, which looks
+        /// exactly like a dead button. The overlay is checked first so that case produces a sentence
+        /// instead of silence.
+        /// </remarks>
         public bool TryInviteFriends()
         {
-            if (CurrentLobby == CSteamID.Nil)
+            if (!HasLobby())
             {
-                Failed?.Invoke("There is no lobby to invite anyone into. Host on Steam first.");
+                return false;
+            }
+
+            if (!OverlayAvailable)
+            {
+                Failed?.Invoke(
+                    "The Steam overlay is not in this process, so the invite dialog cannot open. " +
+                    "That is normal in the Editor and in a build Steam did not launch — invite a " +
+                    "friend by name instead, or add the build to Steam as a non-Steam game.");
+
                 return false;
             }
 
             SteamFriends.ActivateGameOverlayInviteDialog(CurrentLobby);
 
             return true;
+        }
+
+        /// <summary>
+        /// Invites one friend directly, without the overlay. The invitee gets the same message in
+        /// their Steam chat and the same <c>GameLobbyJoinRequested_t</c> when they accept, so this
+        /// is the identical flow with a worse way of choosing who.
+        /// </summary>
+        public bool TryInvite(CSteamID friend)
+        {
+            if (!HasLobby())
+            {
+                return false;
+            }
+
+            if (!SteamMatchmaking.InviteUserToLobby(CurrentLobby, friend))
+            {
+                Failed?.Invoke(
+                    $"Steam refused to invite {friend}. They may not be a friend of this account.");
+
+                return false;
+            }
+
+            Debug.Log($"[Steam] Invited {friend} to lobby {CurrentLobby}.");
+
+            return true;
+        }
+
+        bool HasLobby()
+        {
+            if (CurrentLobby != CSteamID.Nil)
+            {
+                return true;
+            }
+
+            Failed?.Invoke("There is no lobby to invite anyone into. Host on Steam first.");
+
+            return false;
         }
 
         public void LeaveLobby()

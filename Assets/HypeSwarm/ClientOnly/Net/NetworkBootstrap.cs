@@ -61,6 +61,12 @@ namespace HypeSwarm.ClientOnly.Net
         /// <summary>The Steam lobby, created on demand. Null until Steam is used.</summary>
         public SteamLobbyService Lobby => lobby;
 
+        /// <summary>
+        /// The last thing Steam refused to do and why, or empty. Kept because the console is not
+        /// where someone testing a build is looking when a button appears to do nothing.
+        /// </summary>
+        public string LastSteamMessage { get; private set; } = string.Empty;
+
         void Awake()
         {
             if (manager == null)
@@ -244,11 +250,24 @@ namespace HypeSwarm.ClientOnly.Net
             lobby.TryCreateLobby(LobbyRoster.MaxPlayers);
         }
 
+        /// <summary>Opens Steam's invite dialog, when there is an overlay to open it in.</summary>
         public void InviteFriends()
         {
             if (EnsureLobby())
             {
                 lobby.TryInviteFriends();
+            }
+        }
+
+        /// <summary>
+        /// Invites one friend by id. The fallback for every context without an overlay, which
+        /// includes the Editor.
+        /// </summary>
+        public void Invite(CSteamID friend)
+        {
+            if (EnsureLobby())
+            {
+                lobby.TryInvite(friend);
             }
         }
 
@@ -275,7 +294,11 @@ namespace HypeSwarm.ClientOnly.Net
                 lobby = new SteamLobbyService();
                 lobby.LobbyCreated += OnLobbyCreated;
                 lobby.HostResolved += OnHostResolved;
-                lobby.Failed += reason => Debug.LogWarning($"[Steam] {reason}");
+                lobby.Failed += reason =>
+                {
+                    LastSteamMessage = reason;
+                    Debug.LogWarning($"[Steam] {reason}");
+                };
             }
 
             if (lobby.TryListen())

@@ -88,6 +88,8 @@ namespace HypeSwarm.Editor
 
             if (report.summary.result == BuildResult.Succeeded)
             {
+                CopySteamAppId();
+
                 Debug.Log(
                     $"Test player built at {ExecutablePath} in {report.summary.totalTime.TotalSeconds:0}s. " +
                     "Press Play in the Editor to host, then launch clients.");
@@ -96,6 +98,27 @@ namespace HypeSwarm.Editor
 
             Debug.LogError(
                 $"Test player build {report.summary.result} with {report.summary.totalErrors} error(s).");
+        }
+
+        /// <summary>
+        /// Steam reads the app id from a file next to the executable. Without it a build initialises
+        /// no Steam at all and falls back to the direct transport — correctly, quietly, and while
+        /// looking exactly like a working game, which is the worst way to fail a Steam test.
+        /// </summary>
+        static void CopySteamAppId()
+        {
+            const string appIdFile = "steam_appid.txt";
+
+            var source = Path.GetFullPath(appIdFile);
+
+            if (!File.Exists(source))
+            {
+                Debug.LogWarning(
+                    $"No {appIdFile} at the project root, so the test player will not reach Steam.");
+                return;
+            }
+
+            File.Copy(source, Path.Combine(Path.GetDirectoryName(ExecutablePath)!, appIdFile), true);
         }
 
         [MenuItem("Hype Swarm/Network/Launch 1 Test Client", priority = 120)]

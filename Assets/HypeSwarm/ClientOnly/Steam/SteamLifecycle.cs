@@ -30,6 +30,27 @@ namespace HypeSwarm.ClientOnly.Steam
 
         public static bool IsRunning { get; private set; }
 
+        /// <summary>
+        /// Puts every static here back to its starting value when play mode begins.
+        /// </summary>
+        /// <remarks>
+        /// This project enters play mode without a domain reload, so these statics survive from the
+        /// previous session. Steamworks.NET zeroes its own dispatcher counter on the same callback,
+        /// expecting the game to re-initialise — and a stale <see cref="IsRunning"/> is exactly what
+        /// stops that happening. The result is the worst kind of broken: Steam reports itself
+        /// running and answers <c>GetPersonaName</c> from the still-live native library, while every
+        /// <c>RunCallbacks</c> throws, so no callback ever arrives and anything waiting on one waits
+        /// forever. That is a button that does nothing on the second press of Play and works
+        /// perfectly in a build, where the process is always new.
+        /// </remarks>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetForPlayMode()
+        {
+            IsRunning = false;
+            FailureReason = "Steam has not been started yet";
+            pump = null;
+        }
+
         /// <summary>Why Steam is not running. Empty while it is.</summary>
         public static string FailureReason { get; private set; } = "Steam has not been started yet";
 
@@ -68,6 +89,17 @@ namespace HypeSwarm.ClientOnly.Steam
             if (result != ESteamAPIInitResult.k_ESteamAPIInitResult_OK)
             {
                 return Fail(string.IsNullOrEmpty(error) ? result.ToString() : error);
+            }
+
+            // Steam's own init succeeding is not enough: the managed dispatcher is what turns
+            // callbacks into C# events, and without it every RunCallbacks throws instead. Checked
+            // here so the failure is one line at startup rather than a lobby that never appears.
+            if (!CallbackDispatcher.IsInitialized)
+            {
+                SteamAPI.Shutdown();
+
+                return Fail("Steam initialised but its callback dispatcher did not, so no Steam " +
+                            "callback would ever arrive. Restarting the Editor clears this.");
             }
 
             IsRunning = true;
@@ -121,7 +153,10 @@ namespace HypeSwarm.ClientOnly.Steam
                 return;
             }
 
-            var host = new GameObject("Steam Callbacks") { hideFlags = HideFlags.HideAndDontSave };
+            // HideInHierarchy, not HideAndDontSave: the DontSave flags keep an object alive when
+            // play mode ends, so the pump would never reach OnApplicationQuit, Steam would never be
+            // shut down, and each session would leave another one behind.
+            var host = new GameObject("Steam Callbacks") { hideFlags = HideFlags.HideInHierarchy };
             UnityEngine.Object.DontDestroyOnLoad(host);
 
             pump = host.AddComponent<SteamCallbackPump>();

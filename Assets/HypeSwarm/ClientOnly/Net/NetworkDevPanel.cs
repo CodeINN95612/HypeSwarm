@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using HypeSwarm.ClientOnly.Steam;
 using HypeSwarm.Shared.Net;
 using Mirror;
@@ -39,6 +41,9 @@ namespace HypeSwarm.ClientOnly.Net
         string address = "localhost";
         string port = NetworkLaunchOptions.DefaultPort.ToString();
         Vector2 scroll;
+        Vector2 friendScroll;
+        bool showFriends;
+        IReadOnlyList<SteamFriend> friends = Array.Empty<SteamFriend>();
 
         void Awake()
         {
@@ -73,7 +78,7 @@ namespace HypeSwarm.ClientOnly.Net
                 return;
             }
 
-            using (new GUILayout.AreaScope(new Rect(10f, 10f, 320f, 420f), GUIContent.none, GUI.skin.box))
+            using (new GUILayout.AreaScope(new Rect(10f, 10f, 320f, 540f), GUIContent.none, GUI.skin.box))
             {
                 GUILayout.Label($"<b>Hype Swarm — network ({toggleKey} hides)</b>", RichLabel());
                 GUILayout.Label(bootstrap == null ? "no bootstrap" : bootstrap.Selection.ToString(), Wrapped());
@@ -156,10 +161,7 @@ namespace HypeSwarm.ClientOnly.Net
 
                 GUILayout.EndScrollView();
 
-                if (SteamLifecycle.IsRunning && GUILayout.Button("Invite friends…"))
-                {
-                    bootstrap.InviteFriends();
-                }
+                DrawInvites();
             }
 
             GUILayout.Space(6f);
@@ -168,6 +170,93 @@ namespace HypeSwarm.ClientOnly.Net
             {
                 bootstrap.Stop();
             }
+        }
+
+        /// <summary>
+        /// Two ways to invite, because the good one is not always available. The overlay dialog is
+        /// Steam's own and is what players will use; the friend list underneath it exists for every
+        /// context the overlay is not injected into, starting with the Editor.
+        /// </summary>
+        void DrawInvites()
+        {
+            if (!SteamLifecycle.IsRunning)
+            {
+                return;
+            }
+
+            GUILayout.BeginHorizontal();
+
+            GUI.enabled = SteamLobbyService.OverlayAvailable;
+
+            if (GUILayout.Button("Invite friends…"))
+            {
+                bootstrap.InviteFriends();
+            }
+
+            GUI.enabled = true;
+
+            if (GUILayout.Button(showFriends ? "Hide list" : "By name", GUILayout.Width(70f)))
+            {
+                showFriends = !showFriends;
+
+                if (showFriends)
+                {
+                    RefreshFriends();
+                }
+            }
+
+            GUILayout.EndHorizontal();
+
+            if (!SteamLobbyService.OverlayAvailable)
+            {
+                GUILayout.Label("No Steam overlay here — use the list.", Wrapped());
+            }
+
+            if (showFriends)
+            {
+                DrawFriends();
+            }
+
+            if (!string.IsNullOrEmpty(bootstrap.LastSteamMessage))
+            {
+                GUILayout.Label(bootstrap.LastSteamMessage, Wrapped());
+            }
+        }
+
+        void DrawFriends()
+        {
+            if (GUILayout.Button("Refresh"))
+            {
+                RefreshFriends();
+            }
+
+            if (friends.Count == 0)
+            {
+                GUILayout.Label("No friends online.", Wrapped());
+                return;
+            }
+
+            friendScroll = GUILayout.BeginScrollView(friendScroll, GUILayout.Height(110f));
+
+            foreach (var friend in friends)
+            {
+                if (GUILayout.Button(friend.ToString()))
+                {
+                    bootstrap.Invite(friend.Id);
+                }
+            }
+
+            GUILayout.EndScrollView();
+        }
+
+        /// <summary>
+        /// Explicit rather than per-frame: <c>OnGUI</c> runs several times a frame, and walking the
+        /// whole friends list through the Steam API each time would be a hundred native calls for a
+        /// list that changes when somebody logs in.
+        /// </summary>
+        void RefreshFriends()
+        {
+            friends = SteamFriendList.Online();
         }
 
         static GUIStyle RichLabel()
