@@ -23,6 +23,17 @@ unity open HypeSwarm
 
 Unity regenerates `Library/`, the solution files and `UserSettings/` on first import, so they are not tracked here.
 
+## Tests
+
+EditMode tests live in `Assets/Tests/EditMode` and run in a few seconds. Open **Window → General →
+Test Runner** in the Editor, or from the CLI with the Editor closed:
+
+```
+unity test --platform EditMode
+```
+
+What belongs in a test — and what deliberately does not — is set out in [CLAUDE.md](CLAUDE.md).
+
 ## Scene merging
 
 Unity ships a YAML-aware merge tool that resolves conflicts in scenes and prefabs far better than a plain text merge. `.gitattributes` already routes those file types to it; register the driver once per clone:

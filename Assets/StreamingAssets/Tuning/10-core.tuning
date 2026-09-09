@@ -1,0 +1,23 @@
+# Hype Swarm — core tuning
+#
+# External config, not baked into the build (spec §13.3). Edit this file next to the built
+# executable and restart; no rebuild needed. A local override layer lives in
+# <persistentDataPath>/Tuning and wins over anything here.
+#
+# Format: one "key = value" per line, '#' starts a comment. Numbers are parsed
+# invariant-culture, so the decimal separator is always '.' regardless of system locale.
+# Comma-separated lists are read as curves / per-tier values.
+#
+# Files in a directory load in filename order — hence the numeric prefix.
+
+# --- Session ------------------------------------------------------------------------
+# Target run length in seconds, from first spawn to the boss dying (spec §3, ~60 minutes).
+session.target_length            = 3600
+
+# --- Placeholders --------------------------------------------------------------------
+# Real curves arrive with the wave director in Phase 2 step 8. These exist so the loader
+# has something to read and the layering is exercised end to end.
+placeholder.float                = 1.5
+placeholder.int                  = 7
+placeholder.bool                 = true
+placeholder.curve                = 0, 0.5, 1.25, 2

@@ -1,0 +1,26 @@
+{
+    "name": "HypeSwarm.Architecture.Tests",
+    "rootNamespace": "HypeSwarm.Architecture.Tests",
+    "references": [
+        "HypeSwarm.Shared",
+        "HypeSwarm.ClientOnly",
+        "HypeSwarm.ServerOnly",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
