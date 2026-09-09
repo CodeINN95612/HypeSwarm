@@ -761,7 +761,7 @@ Do this **now**, while the codebase is small. Retrofitting multiplayer is the mo
 ### 4. Stat system
 `StatSheet`, modifier stacks, removal by source, dirty-flag caching, fixed operation order (§9). Replicate modifier lists, not values.
 
-Implement the **store-linear/derive-asymptotic** split (§5.6.2) now, before any content depends on stat behaviour. Unified damage and unified damage reduction (§5.6.1). Tag every stat so it feeds path thresholds later (§4.1).
+Implement the **store-linear/derive-asymptotic** split (§5.6.2) now, before any content depends on stat behaviour. Unified damage and unified damage reduction (§5.6.1). **Stats carry no tags** — tags live on abilities, items, augments and champions (§6.1), and path thresholds read those.
 
 **Exit:** a temporary buff applies, displays correctly on all clients, and removes cleanly.
 

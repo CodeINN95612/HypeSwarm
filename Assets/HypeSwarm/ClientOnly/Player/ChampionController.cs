@@ -1,6 +1,7 @@
 using HypeSwarm.ClientOnly.Controls;
 using HypeSwarm.Shared.Movement;
 using HypeSwarm.Shared.Net;
+using HypeSwarm.Shared.Stats;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -55,6 +56,7 @@ namespace HypeSwarm.ClientOnly.Player
 
         CharacterController body;
         ChampionNetworkState state;
+        ChampionStats stats;
         GameplayInput input;
         CharacterMotor motor;
         float verticalSpeed;
@@ -92,6 +94,7 @@ namespace HypeSwarm.ClientOnly.Player
         {
             body = GetComponent<CharacterController>();
             state = GetComponent<ChampionNetworkState>();
+            stats = GetComponent<ChampionStats>();
             Motor.Reset(MotionPlane.Flatten(transform.forward));
             AimPoint = transform.position;
 
@@ -124,6 +127,24 @@ namespace HypeSwarm.ClientOnly.Player
             Motor.DashEnded -= OnDashEnded;
         }
 
+        /// <summary>
+        /// Feeds the move speed stat into the motor.
+        /// </summary>
+        /// <remarks>
+        /// The stat stores linear and derives asymptotic (§5.6.2), so <c>Effect</c> is the share of the
+        /// way to the asymptote and the bonus tops out just short of doubling the champion. That bound
+        /// is the point rather than a limitation — unbounded movement breaks a horde game, because with
+        /// no basic attacks speed converts into effective health more directly than anything else does.
+        ///
+        /// <para>Read every frame rather than on a change event. It is one cached array lookup and one
+        /// divide, and a stat that only arrives when something remembers to push it is a stat that is
+        /// wrong after the first code path that forgets.</para>
+        /// </remarks>
+        void ApplyMoveSpeed()
+        {
+            Motor.SpeedMultiplier = stats == null ? 1f : 1f + stats.Sheet.Effect(StatId.MoveSpeed);
+        }
+
         void OnDashStarted(DashEvent dash) => state?.SubmitDashStarted(dash.Duration);
 
         void OnDashEnded() => state?.SubmitDashEnded();
@@ -152,6 +173,8 @@ namespace HypeSwarm.ClientOnly.Player
             var move = input == null
                 ? Vector2.zero
                 : AimGeometry.CameraRelative(input.Move, camera == null ? 0f : camera.transform.eulerAngles.y);
+
+            ApplyMoveSpeed();
 
             var motionInput = new MovementInput(move, aim, input != null && input.ConsumeDashPressed());
             var displacement = Motor.Step(motionInput, deltaTime);

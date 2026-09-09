@@ -29,6 +29,7 @@ namespace HypeSwarm.Shared.Movement
         MovementSettings settings;
         Vector2 dashVelocity;
         float dashTimeRemaining;
+        float speedMultiplier = 1f;
 
         public CharacterMotor(MovementSettings settings = null)
         {
@@ -51,6 +52,35 @@ namespace HypeSwarm.Shared.Movement
         }
 
         public DashChargePool Charges { get; }
+
+        /// <summary>
+        /// Top speed multiplier, from the move speed stat and later from slows. One is unmodified.
+        /// </summary>
+        /// <remarks>
+        /// <b>A multiplier set from outside rather than a stat sheet read from inside.</b> The motor
+        /// knowing about stats would be the dependency running the wrong way (§5.6.5) and would put a
+        /// <c>StatSheet</c> in the way of every test and of the headless simulator. The caller resolves
+        /// <c>Effect(StatId.MoveSpeed)</c> and hands over a number.
+        ///
+        /// <para>This is also where slows will land, multiplying it down, with slow resistance reducing
+        /// how far down. One seam for both, so nothing has to decide whether a slow beats a haste.</para>
+        /// </remarks>
+        public float SpeedMultiplier
+        {
+            get => speedMultiplier;
+            set => speedMultiplier = value > 0f ? value : 0f;
+        }
+
+        /// <summary>
+        /// Top speed this step, with the multiplier applied.
+        /// </summary>
+        /// <remarks>
+        /// <b>Dash speed deliberately does not use this.</b> A dash covers an authored distance in an
+        /// authored time (§5.5.5) — stats change how hard things hit, never how far they travel — so a
+        /// move speed build dashes exactly as far as everyone else. Without that, move speed would
+        /// quietly be the best mobility stat in the game as well as the best survival one.
+        /// </remarks>
+        public float CurrentMaxSpeed => settings.MaxSpeed * speedMultiplier;
 
         /// <summary>Current planar velocity, in metres per second.</summary>
         public Vector2 Velocity { get; private set; }
@@ -202,7 +232,7 @@ namespace HypeSwarm.Shared.Movement
                 move = move.normalized;
             }
 
-            var desired = move * settings.MaxSpeed;
+            var desired = move * CurrentMaxSpeed;
             var rate = move.sqrMagnitude > 0f ? settings.Acceleration : settings.Deceleration;
 
             Velocity = Vector2.MoveTowards(Velocity, desired, rate * deltaTime);
@@ -213,7 +243,7 @@ namespace HypeSwarm.Shared.Movement
         void ApplyDashExitVelocity()
         {
             var direction = dashVelocity.sqrMagnitude > 0f ? dashVelocity.normalized : Facing;
-            Velocity = direction * (settings.MaxSpeed * settings.DashExitSpeedFactor);
+            Velocity = direction * (CurrentMaxSpeed * settings.DashExitSpeedFactor);
             dashVelocity = Vector2.zero;
         }
 

@@ -420,6 +420,59 @@ namespace HypeSwarm.Shared.Tests
             Assert.That(second.Item3, Is.EqualTo(first.Item3));
         }
 
+        // --- Move speed (§5.6.2) ----------------------------------------------------------
+
+        [Test]
+        public void TheSpeedMultiplier_ScalesTopSpeed()
+        {
+            var settings = Settings();
+            var motor = new CharacterMotor(settings) { SpeedMultiplier = 1.5f };
+
+            Assert.That(motor.CurrentMaxSpeed, Is.EqualTo(settings.MaxSpeed * 1.5f).Within(Tolerance));
+
+            var travelled = Run(motor, MovementInput.Moving(Vector2.right), 2f).x;
+            var baseline = Run(new CharacterMotor(Settings()), MovementInput.Moving(Vector2.right), 2f).x;
+
+            Assert.That(travelled, Is.GreaterThan(baseline));
+        }
+
+        [Test]
+        public void AMultiplierOfOne_ChangesNothing()
+        {
+            var motor = new CharacterMotor(Settings()) { SpeedMultiplier = 1f };
+
+            Assert.That(
+                Run(motor, MovementInput.Moving(Vector2.right), 2f),
+                Is.EqualTo(Run(new CharacterMotor(Settings()), MovementInput.Moving(Vector2.right), 2f)));
+        }
+
+        /// <summary>A negative multiplier is a champion walking backwards, which is not what a slow is.</summary>
+        [Test]
+        public void ANegativeMultiplier_IsClampedToAStandstill()
+        {
+            var motor = new CharacterMotor(Settings()) { SpeedMultiplier = -2f };
+
+            Assert.That(motor.SpeedMultiplier, Is.EqualTo(0f));
+            Assert.That(Run(motor, MovementInput.Moving(Vector2.right), 2f).magnitude, Is.EqualTo(0f).Within(Tolerance));
+        }
+
+        /// <summary>
+        /// Stats change how hard things hit, never how far they travel (§5.5.5). A move speed build
+        /// dashes exactly as far as everyone else, or speed would be the best mobility stat as well as
+        /// the best survival one.
+        /// </summary>
+        [Test]
+        public void TheSpeedMultiplier_DoesNotChangeHowFarADashCovers()
+        {
+            var settings = IsolatedDashSettings();
+            var dash = new MovementInput(Vector2.zero, Vector2.up, true);
+
+            var normal = Run(new CharacterMotor(settings), dash, settings.DashDuration).magnitude;
+            var hasted = Run(new CharacterMotor(settings) { SpeedMultiplier = 3f }, dash, settings.DashDuration).magnitude;
+
+            Assert.That(hasted, Is.EqualTo(normal).Within(Tolerance));
+        }
+
         static Tuple<Vector2, Vector2, int> Replay(MovementInput[] inputs)
         {
             var motor = new CharacterMotor(Settings());
