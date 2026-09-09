@@ -29,7 +29,7 @@ EditMode tests live in `Assets/Tests/EditMode` and run in a few seconds. Open **
 Test Runner** in the Editor, or from the CLI with the Editor closed:
 
 ```
-unity test --platform EditMode
+unity test --mode EditMode
 ```
 
 What belongs in a test — and what deliberately does not — is set out in [CLAUDE.md](CLAUDE.md).
