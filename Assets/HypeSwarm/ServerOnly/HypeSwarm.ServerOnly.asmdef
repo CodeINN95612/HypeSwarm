@@ -2,7 +2,8 @@
     "name": "HypeSwarm.ServerOnly",
     "rootNamespace": "HypeSwarm.ServerOnly",
     "references": [
-        "HypeSwarm.Shared"
+        "HypeSwarm.Shared",
+        "Mirror"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

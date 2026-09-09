@@ -1,7 +1,9 @@
 {
     "name": "HypeSwarm.Shared",
     "rootNamespace": "HypeSwarm.Shared",
-    "references": [],
+    "references": [
+        "Mirror"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

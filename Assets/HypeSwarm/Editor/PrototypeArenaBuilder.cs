@@ -1,5 +1,10 @@
 using System.IO;
+using HypeSwarm.ClientOnly.Net;
 using HypeSwarm.ClientOnly.Player;
+using HypeSwarm.Shared.Net;
+using kcp2k;
+using Mirror;
+using Mirror.FizzySteam;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -43,6 +48,10 @@ namespace HypeSwarm.Editor
         const float SpawnClearance = 9f;
         const int ObstacleCount = 44;
 
+        /// <summary>Metres from the middle to each spawn point. Inside <see cref="SpawnClearance"/>,
+        /// so nobody arrives inside an obstacle.</summary>
+        const float SpawnRingRadius = 5f;
+
         [MenuItem("Hype Swarm/Build Prototype Arena")]
         public static void BuildFromMenu()
         {
@@ -76,9 +85,9 @@ namespace HypeSwarm.Editor
             CreateArena(ground, obstacle);
 
             var prefab = CreateChampionPrefab(champion, accent, trail, reticle);
-            var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
-            instance.transform.position = new Vector3(0f, 1.1f, 0f);
 
+            CreateSpawnPoints();
+            CreateNetwork(prefab);
             CreateCamera();
 
             EnsureFolder(Path.GetDirectoryName(ScenePath));
@@ -88,8 +97,8 @@ namespace HypeSwarm.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log($"Prototype arena rebuilt at {ScenePath}. Press Play; WASD moves, the mouse aims, " +
-                      "Space or right mouse dashes.");
+            Debug.Log($"Prototype arena rebuilt at {ScenePath}. Press Play to host; WASD moves, the " +
+                      "mouse aims, Space or right mouse dashes, F1 shows the network panel.");
         }
 
         // --- Scene contents -------------------------------------------------------------------
@@ -162,9 +171,75 @@ namespace HypeSwarm.Editor
             camera.backgroundColor = new Color(0.09f, 0.10f, 0.13f);
             camera.clearFlags = CameraClearFlags.SolidColor;
 
-            // The rig finds the champion itself, so nothing here needs a scene reference that a
-            // prefab could not carry.
+            // Left without a target on purpose. Five champions will be in this scene and only one of
+            // them is ours; ChampionOwnership points the rig at it the moment authority arrives.
             go.AddComponent<ChampionCameraRig>();
+        }
+
+        /// <summary>
+        /// One spawn point per player, in a ring facing outward. Slot <c>n</c> always gets point
+        /// <c>n</c>, so five players arriving at once do not land inside one another.
+        /// </summary>
+        static void CreateSpawnPoints()
+        {
+            var root = new GameObject("Spawn Points").transform;
+
+            for (var i = 0; i < LobbyRoster.MaxPlayers; i++)
+            {
+                var angle = i * 360f / LobbyRoster.MaxPlayers;
+                var direction = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
+
+                var point = new GameObject($"Spawn {i}");
+                point.transform.SetParent(root, false);
+                point.transform.position = direction * SpawnRingRadius + Vector3.up * 1.1f;
+                point.transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+
+                point.AddComponent<NetworkStartPosition>();
+            }
+        }
+
+        /// <summary>
+        /// The session object: a manager, both transports, and the switch that picks between them.
+        /// </summary>
+        /// <remarks>
+        /// Both transports are here and neither is wired into the manager. That is the whole of spec
+        /// §13.4 in scene form — <see cref="NetworkBootstrap"/> assigns one at runtime, so which one
+        /// this build uses is not a property of the scene.
+        /// </remarks>
+        static void CreateNetwork(GameObject championPrefab)
+        {
+            var go = new GameObject("Network");
+
+            var direct = go.AddComponent<KcpTransport>();
+            direct.port = NetworkLaunchOptions.DefaultPort;
+
+            var steam = go.AddComponent<FizzySteamworks>();
+            steam.enabled = false;
+
+            var manager = go.AddComponent<HypeSwarmNetworkManager>();
+            manager.playerPrefab = championPrefab;
+            manager.maxConnections = LobbyRoster.MaxPlayers;
+            manager.autoCreatePlayer = false;
+            manager.playerSpawnMethod = PlayerSpawnMethod.RoundRobin;
+
+            // Mirror binds this in Awake; the bootstrap overwrites it before anything starts. Left
+            // null the manager logs an error on load, which is noise on every single run.
+            manager.transport = direct;
+
+            var bootstrap = go.AddComponent<NetworkBootstrap>();
+            Wire(bootstrap, new (string, Object)[]
+            {
+                ("manager", manager),
+                ("directTransport", direct),
+                ("steamTransport", steam)
+            });
+
+            var panel = go.AddComponent<NetworkDevPanel>();
+            Wire(panel, new (string, Object)[]
+            {
+                ("manager", manager),
+                ("bootstrap", bootstrap)
+            });
         }
 
         // --- Champion -------------------------------------------------------------------------
@@ -217,18 +292,42 @@ namespace HypeSwarm.Editor
             reticleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             reticleRenderer.receiveShadows = false;
 
+            root.AddComponent<NetworkIdentity>();
+
+            // Position is client-authoritative (§10). In a PvE game the only person a movement
+            // cheat affects is the cheater, and taking that trade removes prediction and
+            // reconciliation from the project entirely — which is the difference between five
+            // players working and a netcode rewrite in Phase 5.
+            var networkTransform = root.AddComponent<NetworkTransformUnreliable>();
+            networkTransform.syncDirection = SyncDirection.ClientToServer;
+            networkTransform.syncPosition = true;
+            networkTransform.syncRotation = false; // the root never turns; facing is on the visual
+            networkTransform.syncScale = false;
+
+            root.AddComponent<ChampionNetworkState>();
+
             var champion = root.AddComponent<ChampionController>();
             Wire(champion, new (string, Object)[]
             {
                 ("controls", AssetDatabase.LoadAssetAtPath<InputActionAsset>(ControlsPath)),
-                ("visual", visual),
                 ("reticle", reticle.transform)
             });
+
+            // Off on the prefab. A champion that is not ours must never read this machine's
+            // keyboard, not even for the frame between spawning and authority arriving —
+            // ChampionOwnership switches it on for the one that is.
+            champion.enabled = false;
+
+            var ownership = root.AddComponent<ChampionOwnership>();
+            Wire(ownership, new (string, Object)[] { ("controller", champion) });
+            WireArray(ownership, "localOnly", new Object[] { reticle });
+
+            var facing = root.AddComponent<ChampionFacingPresenter>();
+            Wire(facing, new (string, Object)[] { ("visual", visual) });
 
             var feedback = root.AddComponent<ChampionDashFeedback>();
             Wire(feedback, new (string, Object)[]
             {
-                ("champion", champion),
                 ("visual", capsule.transform),
                 ("trail", trail)
             });
@@ -261,6 +360,28 @@ namespace HypeSwarm.Editor
                 }
 
                 property.objectReferenceValue = value;
+            }
+
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>Assigns a serialized array field, for the same reason as <see cref="Wire"/>.</summary>
+        static void WireArray(Object target, string field, Object[] values)
+        {
+            var serialized = new SerializedObject(target);
+            var property = serialized.FindProperty(field);
+
+            if (property == null)
+            {
+                Debug.LogError($"{target.GetType().Name} has no serialized field '{field}'.");
+                return;
+            }
+
+            property.arraySize = values.Length;
+
+            for (var i = 0; i < values.Length; i++)
+            {
+                property.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
             }
 
             serialized.ApplyModifiedPropertiesWithoutUndo();

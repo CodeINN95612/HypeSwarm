@@ -1,4 +1,4 @@
-using HypeSwarm.Shared.Movement;
+using HypeSwarm.Shared.Net;
 using UnityEngine;
 
 namespace HypeSwarm.ClientOnly.Player
@@ -15,17 +15,20 @@ namespace HypeSwarm.ClientOnly.Player
     /// <para>Everything it does is cosmetic and framed in terms of the dash's own duration, so
     /// retuning dash distance or speed does not leave the visual out of step with the movement.</para>
     ///
+    /// <para>It subscribes to <see cref="ChampionNetworkState"/> rather than to the motor, which is
+    /// what makes the other four players' dashes visible: the owner raises the event locally at the
+    /// instant it dashes and the same event arrives on every other machine a moment later. Reading
+    /// the motor instead would work perfectly on the one champion in the scene that has one.</para>
+    ///
     /// <para>The compression is uniform rather than a stretch along the direction of travel. The
     /// visual is rotated to face the aim, and a dash goes where the player is moving, so a stretch
     /// applied on this transform would elongate the champion sideways whenever those two disagree —
     /// which is most of the time, and is the whole point of the control scheme. A real stretch needs
     /// its own transform aligned to the dash, and is worth doing when there is art to stretch.</para>
     /// </remarks>
+    [RequireComponent(typeof(ChampionNetworkState))]
     public sealed class ChampionDashFeedback : MonoBehaviour
     {
-        [SerializeField]
-        ChampionController champion;
-
         [SerializeField]
         [Tooltip("Transform to compress. Scaled, so give it its own object rather than sharing one " +
                  "with a collider.")]
@@ -44,15 +47,15 @@ namespace HypeSwarm.ClientOnly.Player
         [Tooltip("Seconds to return to rest after the dash ends.")]
         float recovery = 0.12f;
 
+        ChampionNetworkState state;
         Vector3 restScale = Vector3.one;
+        float dashDuration;
+        float dashRemaining;
         float recoveryRemaining;
 
         void Awake()
         {
-            if (champion == null)
-            {
-                champion = GetComponentInParent<ChampionController>();
-            }
+            state = GetComponent<ChampionNetworkState>();
 
             if (visual != null)
             {
@@ -62,42 +65,41 @@ namespace HypeSwarm.ClientOnly.Player
 
         void OnEnable()
         {
-            if (champion == null)
+            if (state == null)
             {
                 return;
             }
 
-            champion.Motor.DashStarted += OnDashStarted;
-            champion.Motor.DashEnded += OnDashEnded;
+            state.DashStarted += OnDashStarted;
+            state.DashEnded += OnDashEnded;
         }
 
         void OnDisable()
         {
-            if (champion == null)
+            if (state == null)
             {
                 return;
             }
 
-            champion.Motor.DashStarted -= OnDashStarted;
-            champion.Motor.DashEnded -= OnDashEnded;
+            state.DashStarted -= OnDashStarted;
+            state.DashEnded -= OnDashEnded;
 
             ResetVisual();
         }
 
         void LateUpdate()
         {
-            if (visual == null || champion == null)
+            if (visual == null)
             {
                 return;
             }
 
-            var motor = champion.Motor;
-
-            if (motor.IsDashing)
+            if (dashRemaining > 0f)
             {
                 // Eases out across the dash so the shape has settled by the time the champion is
                 // under control again, rather than snapping back on the frame it ends.
-                ApplyShape(1f - motor.DashProgress);
+                dashRemaining = Mathf.Max(0f, dashRemaining - Time.deltaTime);
+                ApplyShape(dashDuration > 0f ? dashRemaining / dashDuration : 0f);
                 return;
             }
 
@@ -110,8 +112,15 @@ namespace HypeSwarm.ClientOnly.Player
             ApplyShape(recovery > 0f ? recoveryRemaining / recovery : 0f);
         }
 
-        void OnDashStarted(DashEvent dash)
+        /// <summary>
+        /// Runs the shape off a local clock started by the event, rather than polling the motor.
+        /// A copy of another player's champion has no motor to poll, and a dash nobody else can see
+        /// is a dash that reads as a teleport at the far end.
+        /// </summary>
+        void OnDashStarted(float duration)
         {
+            dashDuration = Mathf.Max(0.01f, duration);
+            dashRemaining = dashDuration;
             recoveryRemaining = 0f;
 
             if (trail != null)
@@ -123,6 +132,7 @@ namespace HypeSwarm.ClientOnly.Player
 
         void OnDashEnded()
         {
+            dashRemaining = 0f;
             recoveryRemaining = recovery;
 
             if (trail != null)
@@ -141,6 +151,7 @@ namespace HypeSwarm.ClientOnly.Player
 
         void ResetVisual()
         {
+            dashRemaining = 0f;
             recoveryRemaining = 0f;
 
             if (visual != null)

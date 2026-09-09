@@ -1,5 +1,6 @@
 using HypeSwarm.ClientOnly.Controls;
 using HypeSwarm.Shared.Movement;
+using HypeSwarm.Shared.Net;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -12,9 +13,14 @@ namespace HypeSwarm.ClientOnly.Player
     /// <remarks>
     /// All of the movement rules live in <see cref="CharacterMotor"/> in <c>Shared</c>. What remains
     /// here is genuinely client work — turning a keyboard into a direction, a cursor into an aim
-    /// vector, and a displacement into a <c>CharacterController.Move</c> call. That division is not
-    /// tidiness: when this becomes networked (§10) the host has to run the same rules with no
-    /// camera and no mouse, and anything that leaked into this file would have to be rewritten then.
+    /// vector, and a displacement into a <c>CharacterController.Move</c> call. That division is what
+    /// let movement be networked (§10) without touching a rule: the champion five other machines see
+    /// is driven by <see cref="ChampionNetworkState"/> and never by this file.
+    ///
+    /// <para>This runs on the owning client only, and ships <b>disabled on the prefab</b>;
+    /// <see cref="ChampionOwnership"/> enables it once authority arrives. Movement is
+    /// client-authoritative (§10), so this is the only machine that decides where this champion
+    /// goes.</para>
     ///
     /// <para>Movement is stepped in <c>Update</c>, not <c>FixedUpdate</c>. There is no rigidbody
     /// here and none is planned (§11), so a fixed step would only add a frame of latency to the
@@ -34,11 +40,6 @@ namespace HypeSwarm.ClientOnly.Player
 
         [Header("Presentation")]
         [SerializeField]
-        [Tooltip("Child transform rotated to face the aim direction. Separate from the root so that " +
-                 "facing never rotates the collider or the capsule the horde will query.")]
-        Transform visual;
-
-        [SerializeField]
         [Tooltip("Optional marker placed where the cursor meets the ground.")]
         Transform reticle;
 
@@ -53,6 +54,7 @@ namespace HypeSwarm.ClientOnly.Player
         float gravity = 30f;
 
         CharacterController body;
+        ChampionNetworkState state;
         GameplayInput input;
         CharacterMotor motor;
         float verticalSpeed;
@@ -74,9 +76,22 @@ namespace HypeSwarm.ClientOnly.Player
         /// <summary>True while the cursor resolves to a real ground position.</summary>
         public bool HasAimPoint { get; private set; }
 
+        /// <summary>
+        /// Points this champion at the camera that owns it. Called by <see cref="ChampionOwnership"/>
+        /// when authority arrives, because a spawned prefab cannot carry a scene reference.
+        /// </summary>
+        public void AssignCamera(Camera camera)
+        {
+            if (camera != null)
+            {
+                aimCamera = camera;
+            }
+        }
+
         void Awake()
         {
             body = GetComponent<CharacterController>();
+            state = GetComponent<ChampionNetworkState>();
             Motor.Reset(MotionPlane.Flatten(transform.forward));
             AimPoint = transform.position;
 
@@ -94,12 +109,24 @@ namespace HypeSwarm.ClientOnly.Player
         void OnEnable()
         {
             input?.Enable();
+
+            // Subscribed here rather than in Awake so a champion that never gains authority never
+            // announces a dash it did not take.
+            Motor.DashStarted += OnDashStarted;
+            Motor.DashEnded += OnDashEnded;
         }
 
         void OnDisable()
         {
             input?.Disable();
+
+            Motor.DashStarted -= OnDashStarted;
+            Motor.DashEnded -= OnDashEnded;
         }
+
+        void OnDashStarted(DashEvent dash) => state?.SubmitDashStarted(dash.Duration);
+
+        void OnDashEnded() => state?.SubmitDashEnded();
 
         void OnDestroy()
         {
@@ -130,7 +157,10 @@ namespace HypeSwarm.ClientOnly.Player
             var displacement = Motor.Step(motionInput, deltaTime);
 
             ApplyMotion(displacement, deltaTime);
-            ApplyFacing();
+
+            // Written, not applied. ChampionFacingPresenter turns the visual from this value on
+            // every machine, so the champion the other four players see cannot drift from ours.
+            state?.SubmitFacing(Motor.Facing);
 
             // After the move, not before. The reticle hangs off the champion, so placing it first
             // means the body then drags it along by exactly this frame's displacement — a lag that
@@ -199,21 +229,6 @@ namespace HypeSwarm.ClientOnly.Player
             if (reticle != null && HasAimPoint)
             {
                 reticle.position = AimPoint;
-            }
-        }
-
-        void ApplyFacing()
-        {
-            if (visual == null)
-            {
-                return;
-            }
-
-            var facing = MotionPlane.ToWorld(Motor.Facing);
-
-            if (facing.sqrMagnitude > 0f)
-            {
-                visual.rotation = Quaternion.LookRotation(facing, Vector3.up);
             }
         }
     }

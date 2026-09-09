@@ -19,7 +19,8 @@ namespace HypeSwarm.ClientOnly.Player
     public sealed class ChampionCameraRig : MonoBehaviour
     {
         [SerializeField]
-        [Tooltip("Champion to follow. Left empty, the rig finds the first one in the scene.")]
+        [Tooltip("Champion to follow. Assigned at runtime by ChampionOwnership — five champions " +
+                 "share a scene and only one of them is ours.")]
         ChampionController target;
 
         [Header("Framing")]
@@ -65,15 +66,23 @@ namespace HypeSwarm.ClientOnly.Player
         Vector3 lead;
         Vector3 leadVelocity;
 
-        void OnEnable()
+        /// <summary>
+        /// Follows a different champion, framing it immediately.
+        /// </summary>
+        /// <remarks>
+        /// Pushed in rather than searched for. With five champions in the scene there is no query
+        /// that picks the right one — <see cref="ChampionOwnership"/> is the only thing that knows,
+        /// and it knows the moment authority arrives.
+        /// </remarks>
+        public void Follow(ChampionController champion)
         {
-            ResolveTarget();
+            target = champion;
             SnapToTarget();
         }
 
         void LateUpdate()
         {
-            if (target == null && !ResolveTarget())
+            if (target == null)
             {
                 return;
             }
@@ -111,17 +120,6 @@ namespace HypeSwarm.ClientOnly.Player
             transform.SetPositionAndRotation(
                 AimGeometry.BoomPosition(focus, pitch, yaw, distance),
                 Quaternion.Euler(pitch, yaw, 0f));
-        }
-
-        bool ResolveTarget()
-        {
-            if (target != null)
-            {
-                return true;
-            }
-
-            target = FindAnyObjectByType<ChampionController>();
-            return target != null;
         }
     }
 }

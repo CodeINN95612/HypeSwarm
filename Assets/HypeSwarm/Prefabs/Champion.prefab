@@ -465,7 +465,12 @@ GameObject:
   m_Component:
   - component: {fileID: 5665212227044644506}
   - component: {fileID: 7354393512978118832}
+  - component: {fileID: 2787511556466875909}
+  - component: {fileID: 4504453009587567742}
+  - component: {fileID: 2045695076739854313}
   - component: {fileID: 8528695325400522145}
+  - component: {fileID: 6395189180554222214}
+  - component: {fileID: 1459164939985085501}
   - component: {fileID: 4760678343565580720}
   m_Layer: 0
   m_Name: Champion
@@ -516,7 +521,7 @@ CharacterController:
   m_SkinWidth: 0.04
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8528695325400522145
+--- !u!114 &2787511556466875909
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -525,12 +530,79 @@ MonoBehaviour:
   m_GameObject: {fileID: 8767283233336278834}
   m_Enabled: 1
   m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mirror::Mirror.NetworkIdentity
+  sceneId: 0
+  _assetId: 3430761664
+  serverOnly: 0
+  visibility: 0
+  hasSpawned: 0
+--- !u!114 &4504453009587567742
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8767283233336278834}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a553cb17010b2403e8523b558bffbc14, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mirror.Components::Mirror.NetworkTransformUnreliable
+  syncMethod: 0
+  syncDirection: 1
+  syncMode: 0
+  syncInterval: 0.05
+  target: {fileID: 5665212227044644506}
+  updateMethod: 0
+  syncPosition: 1
+  syncRotation: 0
+  syncScale: 0
+  onlySyncOnChange: 1
+  compressRotation: 1
+  interpolatePosition: 1
+  interpolateRotation: 1
+  interpolateScale: 1
+  coordinateSpace: 0
+  timelineOffset: 1
+  showGizmos: 0
+  showOverlay: 0
+  overlayColor: {r: 0, g: 0, b: 0, a: 0.5}
+  bufferResetMultiplier: 3
+  positionSensitivity: 0.01
+  rotationSensitivity: 0.01
+  scaleSensitivity: 0.01
+--- !u!114 &2045695076739854313
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8767283233336278834}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 885ea26d0c8132f42aa5194a88042dee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: HypeSwarm.Shared::HypeSwarm.Shared.Net.ChampionNetworkState
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+--- !u!114 &8528695325400522145
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8767283233336278834}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a341e3d5369b0d5468e9e7c4c36cfcf6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: HypeSwarm.ClientOnly::HypeSwarm.ClientOnly.Player.ChampionController
   controls: {fileID: -944628639613478452, guid: c4b113ee256b416409efff2e380ccdab, type: 3}
   aimCamera: {fileID: 0}
-  visual: {fileID: 5659690934885351443}
   reticle: {fileID: 4995660799234249592}
   movement:
     MaxSpeed: 7
@@ -544,6 +616,39 @@ MonoBehaviour:
     DashLockout: 0.2
     DashExitSpeedFactor: 1
   gravity: 30
+--- !u!114 &6395189180554222214
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8767283233336278834}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d96d6782af9ae1848a466d5055efd09e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: HypeSwarm.ClientOnly::HypeSwarm.ClientOnly.Player.ChampionOwnership
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  controller: {fileID: 8528695325400522145}
+  localOnly:
+  - {fileID: 8537172472469635758}
+--- !u!114 &1459164939985085501
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8767283233336278834}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cc4e0fee95ab71b4d93d9a42d012f5af, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: HypeSwarm.ClientOnly::HypeSwarm.ClientOnly.Player.ChampionFacingPresenter
+  visual: {fileID: 5659690934885351443}
+  remoteTurnSpeed: 900
 --- !u!114 &4760678343565580720
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -556,7 +661,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2124cd9edde73374c9473d75a2f7ef89, type: 3}
   m_Name: 
   m_EditorClassIdentifier: HypeSwarm.ClientOnly::HypeSwarm.ClientOnly.Player.ChampionDashFeedback
-  champion: {fileID: 8528695325400522145}
   visual: {fileID: 3404776065568078761}
   trail: {fileID: 2818039262395169431}
   dashScale: 0.82

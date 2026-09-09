@@ -4,7 +4,12 @@
     "references": [
         "HypeSwarm.Shared",
         "HypeSwarm.ClientOnly",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Mirror",
+        "Mirror.Components",
+        "Mirror.Transports",
+        "kcp2k",
+        "FizzySteamworks"
     ],
     "includePlatforms": [
         "Editor"

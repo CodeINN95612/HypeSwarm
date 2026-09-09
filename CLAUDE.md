@@ -10,6 +10,11 @@ what the spec omits (testing) and the invariants easiest to break by accident.
 Drive the Editor through the Unity CLI / MCP bridge. Never hand-edit `.unity`, `.prefab`, or
 `.asset` YAML — GUID/fileID corruption is silent and expensive.
 
+**Vendored third-party code is read-only.** `Assets/Mirror` and
+`Assets/com.rlabrecque.steamworks.net` are committed copies of upstream releases. Upgrading means
+re-importing the release over them, which silently discards local edits — so fix things around
+them, never in them.
+
 **Save assets before committing.** Unity holds edited assets in memory and writes them on its own
 schedule, so `git add` can capture an asset that still has the old values on disk — a commit that
 looks right in the Editor and is wrong in the repo. Run `AssetDatabase.SaveAssets` (or Ctrl+S)

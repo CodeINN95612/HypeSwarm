@@ -3,6 +3,7 @@
     "rootNamespace": "HypeSwarm.Shared.Tests",
     "references": [
         "HypeSwarm.Shared",
+        "Mirror",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

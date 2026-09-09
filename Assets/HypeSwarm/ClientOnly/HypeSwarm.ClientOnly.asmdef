@@ -3,7 +3,13 @@
     "rootNamespace": "HypeSwarm.ClientOnly",
     "references": [
         "HypeSwarm.Shared",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Mirror",
+        "Mirror.Components",
+        "Mirror.Transports",
+        "kcp2k",
+        "FizzySteamworks",
+        "com.rlabrecque.steamworks.net"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
