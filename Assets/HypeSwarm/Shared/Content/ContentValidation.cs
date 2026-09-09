@@ -1,0 +1,157 @@
+using System.Collections.Generic;
+using HypeSwarm.Shared.Tuning;
+
+namespace HypeSwarm.Shared.Content
+{
+    /// <summary>
+    /// Checks authored content and tuning for the mistakes that would otherwise surface at runtime,
+    /// or — worse — not surface at all.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="ContentLibrary.BuildRegistry"/> on purpose. Building throws on the
+    /// first problem, which is right for loading a session and wrong for reviewing your work: an
+    /// author with three broken ids wants all three, not one per attempt. So this reports
+    /// everything it finds and never throws.
+    ///
+    /// <para>It lives in Shared rather than an editor assembly because the host will want the same
+    /// check on load, and because keeping it free of <c>AssetDatabase</c> is what lets it be tested
+    /// without a project. Asset discovery is the editor's job; judging what it found is this.</para>
+    /// </remarks>
+    public static class ContentValidation
+    {
+        /// <param name="library">The library that ships, or null if none was found.</param>
+        /// <param name="allDefinitionsInProject">
+        /// Every <see cref="ContentDefinition"/> that exists, so content authored but never
+        /// registered can be reported. That one is invisible at runtime — the asset simply never
+        /// loads, and nothing anywhere says why.
+        /// </param>
+        public static IReadOnlyList<ValidationIssue> ValidateContent(
+            ContentLibrary library,
+            IReadOnlyList<ContentDefinition> allDefinitionsInProject)
+        {
+            var issues = new List<ValidationIssue>();
+
+            if (library == null)
+            {
+                issues.Add(new ValidationIssue(
+                    ValidationSeverity.Error,
+                    "No ContentLibrary asset found. Create one via Assets > Create > Hype Swarm > Content Library — " +
+                    "without it no content is registered and nothing resolves."));
+
+                return issues;
+            }
+
+            var registered = new HashSet<ContentDefinition>();
+            var seenIds = new Dictionary<string, ContentDefinition>();
+
+            for (var i = 0; i < library.Definitions.Count; i++)
+            {
+                var definition = library.Definitions[i];
+
+                if (definition == null)
+                {
+                    issues.Add(new ValidationIssue(
+                        ValidationSeverity.Error,
+                        $"Content library slot {i} is empty. Usually a deleted asset — remove the slot or restore it.",
+                        library));
+
+                    continue;
+                }
+
+                if (!registered.Add(definition))
+                {
+                    issues.Add(new ValidationIssue(
+                        ValidationSeverity.Warning,
+                        $"'{definition.name}' is listed more than once in the content library.",
+                        definition));
+
+                    continue;
+                }
+
+                if (!definition.TryValidateId(out var error))
+                {
+                    issues.Add(new ValidationIssue(ValidationSeverity.Error, $"'{definition.name}': {error}", definition));
+                    continue;
+                }
+
+                var id = definition.Id.Value;
+
+                if (seenIds.TryGetValue(id, out var owner))
+                {
+                    issues.Add(new ValidationIssue(
+                        ValidationSeverity.Error,
+                        $"Duplicate content id '{id}': both '{owner.name}' and '{definition.name}' claim it. " +
+                        "Ids address content in saves and on the wire, so they must be unique.",
+                        definition));
+
+                    continue;
+                }
+
+                seenIds.Add(id, definition);
+            }
+
+            if (allDefinitionsInProject != null)
+            {
+                for (var i = 0; i < allDefinitionsInProject.Count; i++)
+                {
+                    var definition = allDefinitionsInProject[i];
+
+                    if (definition == null || registered.Contains(definition))
+                    {
+                        continue;
+                    }
+
+                    issues.Add(new ValidationIssue(
+                        ValidationSeverity.Warning,
+                        $"'{definition.name}' is not in the content library, so it will never load. " +
+                        "Add it, or delete the asset.",
+                        definition));
+                }
+            }
+
+            return issues;
+        }
+
+        /// <param name="loadErrors">Parse and IO problems from <see cref="TuningLoader"/>.</param>
+        public static IReadOnlyList<ValidationIssue> ValidateTuning(
+            TuningConfig tuning,
+            IReadOnlyList<string> loadErrors)
+        {
+            var issues = new List<ValidationIssue>();
+
+            if (loadErrors != null)
+            {
+                for (var i = 0; i < loadErrors.Count; i++)
+                {
+                    issues.Add(new ValidationIssue(ValidationSeverity.Error, loadErrors[i]));
+                }
+            }
+
+            if (tuning == null)
+            {
+                return issues;
+            }
+
+            if (tuning.Layers.Count == 0)
+            {
+                issues.Add(new ValidationIssue(
+                    ValidationSeverity.Warning,
+                    "No tuning files were found, so every value falls back to its hardcoded default."));
+            }
+
+            foreach (var entry in tuning.MalformedEntries)
+            {
+                issues.Add(new ValidationIssue(ValidationSeverity.Error, entry));
+            }
+
+            foreach (var key in tuning.MissingKeys)
+            {
+                issues.Add(new ValidationIssue(
+                    ValidationSeverity.Warning,
+                    $"Tuning key '{key}' was read but is not defined anywhere; the caller's fallback was used."));
+            }
+
+            return issues;
+        }
+    }
+}

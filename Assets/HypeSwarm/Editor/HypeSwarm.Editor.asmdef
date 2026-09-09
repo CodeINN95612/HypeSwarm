@@ -1,0 +1,18 @@
+{
+    "name": "HypeSwarm.Editor",
+    "rootNamespace": "HypeSwarm.Editor",
+    "references": [
+        "HypeSwarm.Shared"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

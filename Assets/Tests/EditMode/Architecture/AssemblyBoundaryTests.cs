@@ -133,7 +133,7 @@ namespace HypeSwarm.Architecture.Tests
 #pragma warning restore CS0649
         }
 
-        static IEnumerable<(string Path, AssemblyDefinitionFile Definition)> RuntimeAsmdefs()
+        static IEnumerable<(string Path, AssemblyDefinitionFile Definition)> ProjectAsmdefs()
         {
             var root = Path.Combine(Application.dataPath, "HypeSwarm");
 
@@ -148,34 +148,73 @@ namespace HypeSwarm.Architecture.Tests
             }
         }
 
-        [Test]
-        public void RuntimeAsmdefsExist_ForAllThreeAssemblies()
+        static readonly string[] RuntimeAssemblyNames =
         {
-            var names = RuntimeAsmdefs().Select(entry => entry.Definition.name).ToArray();
+            "HypeSwarm.Shared",
+            "HypeSwarm.ClientOnly",
+            "HypeSwarm.ServerOnly"
+        };
 
-            Assert.That(names, Is.EquivalentTo(new[]
-            {
-                "HypeSwarm.Shared",
-                "HypeSwarm.ClientOnly",
-                "HypeSwarm.ServerOnly"
-            }));
+        static bool IsEditorOnly(AssemblyDefinitionFile definition)
+        {
+            var platforms = definition.includePlatforms ?? Array.Empty<string>();
+            return platforms.Length == 1 && platforms[0] == "Editor";
         }
 
         /// <summary>
-        /// Editor-only asmdefs are exempt from the reflection checks above, so a runtime assembly
-        /// quietly restricted to the Editor would slip past every other test in this fixture.
+        /// Pins the whole set. A fourth runtime assembly is a real architectural decision, and it
+        /// should require editing this list rather than appearing by accident.
+        /// </summary>
+        [Test]
+        public void AsmdefsUnderHypeSwarm_AreTheExpectedSet()
+        {
+            var names = ProjectAsmdefs().Select(entry => entry.Definition.name).ToArray();
+
+            Assert.That(names, Is.EquivalentTo(RuntimeAssemblyNames.Concat(new[] { "HypeSwarm.Editor" })));
+        }
+
+        /// <summary>
+        /// Editor-only assemblies are exempt from the reflection checks above — UnityEditor is
+        /// theirs to use — so a runtime assembly quietly restricted to the Editor would slip past
+        /// every other test in this fixture while also failing to ship.
         /// </summary>
         [Test]
         public void RuntimeAsmdefs_AreNotEditorOnly()
         {
-            foreach (var (path, definition) in RuntimeAsmdefs())
+            foreach (var (path, definition) in ProjectAsmdefs())
             {
-                var platforms = definition.includePlatforms ?? Array.Empty<string>();
+                if (!RuntimeAssemblyNames.Contains(definition.name))
+                {
+                    continue;
+                }
 
                 Assert.That(
-                    platforms.Contains("Editor") && platforms.Length == 1,
+                    IsEditorOnly(definition),
                     Is.False,
                     $"{Path.GetFileName(path)} is restricted to the Editor and would not ship.");
+            }
+        }
+
+        [Test]
+        public void EditorAsmdef_IsEditorOnly()
+        {
+            var editor = ProjectAsmdefs().Single(entry => entry.Definition.name == "HypeSwarm.Editor");
+
+            Assert.That(
+                IsEditorOnly(editor.Definition),
+                Is.True,
+                "HypeSwarm.Editor must not ship in a build.");
+        }
+
+        [Test]
+        public void RuntimeAssemblies_DoNotReferenceTheEditorAssembly()
+        {
+            foreach (var assembly in new[] { Shared, ClientOnly, ServerOnly })
+            {
+                AssertDoesNotReference(
+                    assembly,
+                    new[] { "HypeSwarm.Editor" },
+                    "Editor tooling is stripped from a build; a runtime dependency on it would not compile there.");
             }
         }
 
@@ -186,7 +225,7 @@ namespace HypeSwarm.Architecture.Tests
         [Test]
         public void SharedAsmdef_DeclaresNoForbiddenReference()
         {
-            var shared = RuntimeAsmdefs().Single(entry => entry.Definition.name == "HypeSwarm.Shared");
+            var shared = ProjectAsmdefs().Single(entry => entry.Definition.name == "HypeSwarm.Shared");
             var declared = shared.Definition.references ?? Array.Empty<string>();
 
             var forbidden = PresentationAssemblies

@@ -12,5 +12,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b8c6750503f3634fb9782f43b6a9e4b, type: 3}
   m_Name: PlaceholderHello
   m_EditorClassIdentifier: HypeSwarm.Shared::HypeSwarm.Shared.Content.PlaceholderDefinition
-  id: 
-  notes: 
+  id: placeholder.hello
+  notes: 'Phase 1 exit criterion: proves a stable string id authored on an asset resolves through the ContentRegistry. Delete once real content types exist.'
