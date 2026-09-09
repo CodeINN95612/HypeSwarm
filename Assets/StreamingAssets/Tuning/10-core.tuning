@@ -57,3 +57,13 @@ stat.lifesteal.soft_cap          = 100
 
 stat.slow_resistance.base        = 0
 stat.slow_resistance.soft_cap    = 100
+
+# --- Combat --------------------------------------------------------------------------
+# The numbers a fight needs that are not stats.
+#
+# The regen delay is what stops health regeneration being a stat you can stand in the
+# swarm and win with, and it is what pays kiting back for the time it costs (§5.5.4):
+# the space a dash buys is the space that heals you.
+
+combat.regen_delay               = 5
+combat.revive_health_fraction    = 0.5

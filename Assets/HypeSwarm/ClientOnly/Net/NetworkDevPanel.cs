@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using HypeSwarm.ClientOnly.Steam;
+using HypeSwarm.Shared.Combat;
 using HypeSwarm.Shared.Net;
 using HypeSwarm.Shared.Stats;
 using Mirror;
@@ -46,6 +47,7 @@ namespace HypeSwarm.ClientOnly.Net
         bool showFriends;
         IReadOnlyList<SteamFriend> friends = Array.Empty<SteamFriend>();
         ChampionStats localStats;
+        Health localHealth;
 
         /// <summary>
         /// The handful worth watching while testing. Not the stat screen — that is Phase 5 (§20).
@@ -92,7 +94,7 @@ namespace HypeSwarm.ClientOnly.Net
                 return;
             }
 
-            using (new GUILayout.AreaScope(new Rect(10f, 10f, 320f, 660f), GUIContent.none, GUI.skin.box))
+            using (new GUILayout.AreaScope(new Rect(10f, 10f, 320f, 760f), GUIContent.none, GUI.skin.box))
             {
                 GUILayout.Label($"<b>Hype Swarm — network ({toggleKey} hides)</b>", RichLabel());
                 GUILayout.Label(bootstrap == null ? "no bootstrap" : bootstrap.Selection.ToString(), Wrapped());
@@ -178,6 +180,7 @@ namespace HypeSwarm.ClientOnly.Net
                 DrawInvites();
             }
 
+            DrawHealth();
             DrawStats();
 
             GUILayout.Space(6f);
@@ -278,6 +281,87 @@ namespace HypeSwarm.ClientOnly.Net
                 stats.CmdDebugBuff(10f);
             }
 #endif
+        }
+
+        /// <summary>
+        /// The local champion health, as every machine currently sees it.
+        /// </summary>
+        /// <remarks>
+        /// The exit criterion for Phase 2 step 5 in one readout: hit the button and the bar drops on
+        /// every machine, a shield eats the next hit before health does, regeneration comes back on
+        /// its own after the delay, and zero reads as dead rather than as a negative number.
+        ///
+        /// <para>Health replicates as values while stats replicate as modifiers, and this is where
+        /// that shows: the number below was computed on the host and sent, because the damage events
+        /// behind it were never sent at all.</para>
+        /// </remarks>
+        void DrawHealth()
+        {
+            var health = LocalHealth();
+
+            GUILayout.Space(6f);
+
+            if (health == null)
+            {
+                return;
+            }
+
+            var shield = health.Shield;
+
+            GUILayout.Label(
+                health.IsDead
+                    ? "<b>Health</b> — dead"
+                    : $"<b>Health</b> — {health.Current:0.#} / {health.Max:0.#}{(shield > 0f ? $"  (+{shield:0.#} shield)" : string.Empty)}",
+                RichLabel());
+
+            var bar = GUILayoutUtility.GetRect(10f, 10f, GUILayout.ExpandWidth(true));
+
+            GUI.Box(bar, GUIContent.none);
+            GUI.Box(new Rect(bar.x, bar.y, bar.width * Clamped(health.Fraction), bar.height), GUIContent.none);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            GUILayout.BeginHorizontal();
+
+            if (GUILayout.Button("Hit 25"))
+            {
+                health.CmdDebugDamage(25f);
+            }
+
+            if (GUILayout.Button("Shield 50"))
+            {
+                health.CmdDebugShield(50f, 10f);
+            }
+
+            GUI.enabled = health.IsDead;
+
+            if (GUILayout.Button("Revive"))
+            {
+                health.CmdDebugRevive();
+            }
+
+            GUI.enabled = true;
+
+            GUILayout.EndHorizontal();
+#endif
+        }
+
+        static float Clamped(float fraction)
+        {
+            return fraction < 0f ? 0f : fraction > 1f ? 1f : fraction;
+        }
+
+        Health LocalHealth()
+        {
+            if (localHealth != null)
+            {
+                return localHealth;
+            }
+
+            var player = NetworkClient.localPlayer;
+
+            localHealth = player == null ? null : player.GetComponent<Health>();
+
+            return localHealth;
         }
 
         static void DrawStat(StatSheet sheet, StatId stat)

@@ -1,3 +1,4 @@
+using HypeSwarm.Shared.Combat;
 using HypeSwarm.Shared.Stats;
 using UnityEngine;
 
@@ -21,6 +22,7 @@ namespace HypeSwarm.Shared.Tuning
     {
         static TuningConfig config;
         static StatCatalog stats;
+        static CombatSettings? combat;
 
         /// <summary>Every tuning value, shipped layer under local override.</summary>
         public static TuningConfig Config => config ??= Load();
@@ -28,11 +30,15 @@ namespace HypeSwarm.Shared.Tuning
         /// <summary>The stat definitions with the tuning file laid over the compiled defaults.</summary>
         public static StatCatalog Stats => stats ??= BuildStats();
 
+        /// <summary>The combat numbers that are not stats.</summary>
+        public static CombatSettings Combat => combat ??= BuildCombat();
+
         /// <summary>Drops what was loaded so the next read comes off disk again.</summary>
         public static void Reload()
         {
             config = null;
             stats = null;
+            combat = null;
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -63,6 +69,19 @@ namespace HypeSwarm.Shared.Tuning
             }
 
             return catalog;
+        }
+
+        static CombatSettings BuildCombat()
+        {
+            var settings = CombatSettings.FromTuning(Config);
+            var problem = settings.Validate();
+
+            if (problem != null)
+            {
+                Debug.LogWarning($"[Tuning] {problem}");
+            }
+
+            return settings;
         }
     }
 }

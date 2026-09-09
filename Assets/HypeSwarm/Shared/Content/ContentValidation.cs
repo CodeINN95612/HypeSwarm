@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using HypeSwarm.Shared.Combat;
 using HypeSwarm.Shared.Stats;
 using HypeSwarm.Shared.Tuning;
 
@@ -127,6 +128,24 @@ namespace HypeSwarm.Shared.Content
             var catalog = StatCatalog.FromTuning(tuning);
 
             foreach (var problem in catalog.Validate())
+            {
+                issues.Add(new ValidationIssue(ValidationSeverity.Error, problem));
+            }
+
+            return issues;
+        }
+
+        /// <summary>
+        /// The combat numbers that are not stats, read the same way and for the same reason: asking
+        /// for a key is what records it as missing.
+        /// </summary>
+        /// <remarks><b>Run this before <see cref="ValidateTuning"/> too.</b></remarks>
+        public static IReadOnlyList<ValidationIssue> ValidateCombat(TuningConfig tuning)
+        {
+            var issues = new List<ValidationIssue>();
+            var problem = CombatSettings.FromTuning(tuning).Validate();
+
+            if (problem != null)
             {
                 issues.Add(new ValidationIssue(ValidationSeverity.Error, problem));
             }
