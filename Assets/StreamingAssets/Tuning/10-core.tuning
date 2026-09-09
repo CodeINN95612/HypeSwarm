@@ -21,3 +21,39 @@ placeholder.float                = 1.5
 placeholder.int                  = 7
 placeholder.bool                 = true
 placeholder.curve                = 0, 0.5, 1.25, 2
+
+# --- Stats ---------------------------------------------------------------------------
+# Starting values before champion growth, items, or augments (spec §5.6).
+#
+# Soft caps are the K in "effect = value / (value + K)" for the stats that derive
+# asymptotically (§5.6.2), so each one is the amount of that stat which buys half its
+# asymptote: 100 damage reduction removes 50% of incoming damage, 300 removes 75%, and no
+# amount ever removes all of it. Stats are never capped; the effect is derived instead.
+#
+# Every stat is listed. A stat missing from here falls back to a compiled default and is
+# reported by the validation window, because half the balance living in a file and half in
+# a constant is the discrepancy nobody finds by reading.
+
+stat.max_health.base             = 100
+stat.health_regen.base           = 1
+stat.damage.base                 = 10
+stat.penetration.base            = 0
+stat.pickup_radius.base          = 3
+
+stat.damage_reduction.base       = 0
+stat.damage_reduction.soft_cap   = 100
+
+stat.haste.base                  = 0
+stat.haste.soft_cap              = 100
+
+stat.move_speed.base             = 0
+stat.move_speed.soft_cap         = 100
+
+stat.dodge.base                  = 0
+stat.dodge.soft_cap              = 100
+
+stat.lifesteal.base              = 0
+stat.lifesteal.soft_cap          = 100
+
+stat.slow_resistance.base        = 0
+stat.slow_resistance.soft_cap    = 100

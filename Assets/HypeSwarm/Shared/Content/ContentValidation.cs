@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using HypeSwarm.Shared.Stats;
 using HypeSwarm.Shared.Tuning;
 
 namespace HypeSwarm.Shared.Content
@@ -107,6 +108,27 @@ namespace HypeSwarm.Shared.Content
                         "Add it, or delete the asset.",
                         definition));
                 }
+            }
+
+            return issues;
+        }
+
+        /// <summary>
+        /// Checks the stat catalog the tuning file produces.
+        /// </summary>
+        /// <remarks>
+        /// <b>Run this before <see cref="ValidateTuning"/>.</b> Building the catalog is what reads
+        /// every stat key, and reading a key is what records it as missing — so a stat the config
+        /// file forgot only shows up if this has already asked for it.
+        /// </remarks>
+        public static IReadOnlyList<ValidationIssue> ValidateStats(TuningConfig tuning)
+        {
+            var issues = new List<ValidationIssue>();
+            var catalog = StatCatalog.FromTuning(tuning);
+
+            foreach (var problem in catalog.Validate())
+            {
+                issues.Add(new ValidationIssue(ValidationSeverity.Error, problem));
             }
 
             return issues;

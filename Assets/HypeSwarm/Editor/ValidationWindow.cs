@@ -87,6 +87,10 @@ namespace HypeSwarm.Editor
             }
 
             tuningIssues.Clear();
+
+            // Before ValidateTuning: building the stat catalog is what asks for every stat key, and
+            // a key nobody asked for is a key that cannot be reported as missing.
+            tuningIssues.AddRange(ContentValidation.ValidateStats(tuning));
             tuningIssues.AddRange(ContentValidation.ValidateTuning(tuning, loadErrors));
 
             Repaint();

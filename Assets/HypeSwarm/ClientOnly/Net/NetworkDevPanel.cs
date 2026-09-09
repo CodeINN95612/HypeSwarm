@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using HypeSwarm.ClientOnly.Steam;
 using HypeSwarm.Shared.Net;
+using HypeSwarm.Shared.Stats;
 using Mirror;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -44,6 +45,19 @@ namespace HypeSwarm.ClientOnly.Net
         Vector2 friendScroll;
         bool showFriends;
         IReadOnlyList<SteamFriend> friends = Array.Empty<SteamFriend>();
+        ChampionStats localStats;
+
+        /// <summary>
+        /// The handful worth watching while testing. Not the stat screen — that is Phase 5 (§20).
+        /// </summary>
+        static readonly StatId[] WatchedStats =
+        {
+            StatId.MaxHealth,
+            StatId.Damage,
+            StatId.Haste,
+            StatId.MoveSpeed,
+            StatId.DamageReduction
+        };
 
         void Awake()
         {
@@ -78,7 +92,7 @@ namespace HypeSwarm.ClientOnly.Net
                 return;
             }
 
-            using (new GUILayout.AreaScope(new Rect(10f, 10f, 320f, 540f), GUIContent.none, GUI.skin.box))
+            using (new GUILayout.AreaScope(new Rect(10f, 10f, 320f, 660f), GUIContent.none, GUI.skin.box))
             {
                 GUILayout.Label($"<b>Hype Swarm — network ({toggleKey} hides)</b>", RichLabel());
                 GUILayout.Label(bootstrap == null ? "no bootstrap" : bootstrap.Selection.ToString(), Wrapped());
@@ -164,6 +178,8 @@ namespace HypeSwarm.ClientOnly.Net
                 DrawInvites();
             }
 
+            DrawStats();
+
             GUILayout.Space(6f);
 
             if (GUILayout.Button("Disconnect"))
@@ -221,6 +237,77 @@ namespace HypeSwarm.ClientOnly.Net
             {
                 GUILayout.Label(bootstrap.LastSteamMessage, Wrapped());
             }
+        }
+
+        /// <summary>
+        /// The local champion stats, as every machine currently resolves them.
+        /// </summary>
+        /// <remarks>
+        /// This is how the exit criterion for Phase 2 step 4 gets watched rather than argued about:
+        /// press the buff button on one client and the numbers move on all of them, because what
+        /// travelled was the modifier list and each machine did its own arithmetic. If they ever
+        /// disagree, they disagree here, in front of you.
+        /// </remarks>
+        void DrawStats()
+        {
+            var stats = LocalStats();
+
+            GUILayout.Space(6f);
+
+            if (stats == null)
+            {
+                GUILayout.Label("No champion spawned yet.", Wrapped());
+                return;
+            }
+
+            var sheet = stats.Sheet;
+
+            GUILayout.Label($"<b>Stats</b> — {sheet.Modifiers.Count} modifier(s)", RichLabel());
+
+            for (var i = 0; i < WatchedStats.Length; i++)
+            {
+                DrawStat(sheet, WatchedStats[i]);
+            }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            var buff = ModifierSource.Parse(ChampionStats.DebugBuffId);
+            var remaining = stats.RemainingOn(buff);
+
+            if (GUILayout.Button(remaining > 0f ? $"Buff me ({remaining:0.#}s)" : "Buff me (10s)"))
+            {
+                stats.CmdDebugBuff(10f);
+            }
+#endif
+        }
+
+        static void DrawStat(StatSheet sheet, StatId stat)
+        {
+            var definition = sheet.Catalog[stat];
+            var value = sheet.Get(stat);
+
+            GUILayout.Label(
+                definition.IsDerived
+                    ? $"{definition.DisplayName}: {value:0.#} → {sheet.Effect(stat) * 100f:0.#}%"
+                    : $"{definition.DisplayName}: {value:0.#}",
+                Wrapped());
+        }
+
+        /// <summary>
+        /// The champion this machine owns. Looked up rather than wired: it does not exist until the
+        /// server spawns it, and it is gone again on disconnect.
+        /// </summary>
+        ChampionStats LocalStats()
+        {
+            if (localStats != null)
+            {
+                return localStats;
+            }
+
+            var player = NetworkClient.localPlayer;
+
+            localStats = player == null ? null : player.GetComponent<ChampionStats>();
+
+            return localStats;
         }
 
         void DrawFriends()

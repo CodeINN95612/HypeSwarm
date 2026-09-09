@@ -472,6 +472,7 @@ GameObject:
   - component: {fileID: 6395189180554222214}
   - component: {fileID: 1459164939985085501}
   - component: {fileID: 4760678343565580720}
+  - component: {fileID: 6120739465361903012}
   m_Layer: 0
   m_Name: Champion
   m_TagString: Untagged
@@ -665,3 +666,19 @@ MonoBehaviour:
   trail: {fileID: 2818039262395169431}
   dashScale: 0.82
   recovery: 0.12
+--- !u!114 &6120739465361903012
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8767283233336278834}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 636a487af3f8e96499db582e152e6afe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: HypeSwarm.Shared::HypeSwarm.Shared.Stats.ChampionStats
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
