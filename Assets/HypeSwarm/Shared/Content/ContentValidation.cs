@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using HypeSwarm.Shared.Abilities;
 using HypeSwarm.Shared.Combat;
 using HypeSwarm.Shared.Stats;
 using HypeSwarm.Shared.Tuning;
@@ -144,6 +145,61 @@ namespace HypeSwarm.Shared.Content
         {
             var issues = new List<ValidationIssue>();
             var problem = CombatSettings.FromTuning(tuning).Validate();
+
+            if (problem != null)
+            {
+                issues.Add(new ValidationIssue(ValidationSeverity.Error, problem));
+            }
+
+            return issues;
+        }
+
+        /// <summary>
+        /// Checks every authored ability and champion against the design rules they are easiest to
+        /// break by accident.
+        /// </summary>
+        /// <remarks>
+        /// Takes the whole project's content rather than a list of abilities, because the mistakes worth
+        /// catching are about what is <i>missing</i> — a champion with no mobility ability, a damage step
+        /// with nothing in front of it to say what to damage — and neither is visible from one asset.
+        /// </remarks>
+        public static IReadOnlyList<ValidationIssue> ValidateAbilities(
+            IReadOnlyList<ContentDefinition> definitions,
+            AbilitySettings settings)
+        {
+            var issues = new List<ValidationIssue>();
+
+            if (definitions == null)
+            {
+                return issues;
+            }
+
+            for (var i = 0; i < definitions.Count; i++)
+            {
+                switch (definitions[i])
+                {
+                    case AbilityDefinition ability:
+                        issues.AddRange(AbilityValidation.Validate(ability, settings, ability));
+                        break;
+
+                    case ChampionDefinition champion:
+                        issues.AddRange(AbilityValidation.Validate(champion, champion));
+                        break;
+                }
+            }
+
+            return issues;
+        }
+
+        /// <summary>
+        /// The ability numbers from the tuning file, read the same way and for the same reason: asking
+        /// for a key is what records it as missing.
+        /// </summary>
+        /// <remarks><b>Run this before <see cref="ValidateTuning"/> too.</b></remarks>
+        public static IReadOnlyList<ValidationIssue> ValidateAbilitySettings(TuningConfig tuning)
+        {
+            var issues = new List<ValidationIssue>();
+            var problem = AbilitySettings.FromTuning(tuning).Validate();
 
             if (problem != null)
             {

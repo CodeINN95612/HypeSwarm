@@ -1,4 +1,4 @@
-using HypeSwarm.Shared.Movement;
+using HypeSwarm.Shared.Cooldowns;
 using NUnit.Framework;
 
 namespace HypeSwarm.Shared.Tests
@@ -9,16 +9,16 @@ namespace HypeSwarm.Shared.Tests
     /// distance. These pin them.
     /// </summary>
     [TestFixture]
-    public sealed class DashChargePoolTests
+    public sealed class ChargePoolTests
     {
         const float Cooldown = 4f;
 
-        static DashChargePool Pool(int capacity = 3, float cooldown = Cooldown, float lockout = 0f)
+        static ChargePool Pool(int capacity = 3, float cooldown = Cooldown, float lockout = 0f)
         {
-            return new DashChargePool(capacity, cooldown, lockout);
+            return new ChargePool(capacity, cooldown, lockout);
         }
 
-        static void Tick(DashChargePool pool, float seconds, float step = 0.02f)
+        static void Tick(ChargePool pool, float seconds, float step = 0.02f)
         {
             var elapsed = 0f;
 
@@ -214,6 +214,60 @@ namespace HypeSwarm.Shared.Tests
             pool.Configure(3, Cooldown, 0f);
 
             Assert.That(pool.Available, Is.EqualTo(2), "reapplying the same settings must not refill");
+        }
+
+        // --- Refunds -----------------------------------------------------------------------
+
+        /// <summary>
+        /// For a client whose predicted cast the host refused. One charge back, not a refill: giving back
+        /// everything would make a refused cast into a free reset.
+        /// </summary>
+        [Test]
+        public void ARefund_ReturnsExactlyOneCharge()
+        {
+            var pool = Pool(capacity: 3);
+
+            pool.TrySpend();
+            pool.TrySpend();
+
+            Assert.That(pool.Refund(), Is.True);
+            Assert.That(pool.Available, Is.EqualTo(2));
+        }
+
+        /// <summary>
+        /// The most recently spent one, which — since every charge runs the same duration — is the one
+        /// with the longest left. Returning the soonest instead would quietly shorten the other timer.
+        /// </summary>
+        [Test]
+        public void ARefund_ReturnsTheChargeThatWasJustSpent()
+        {
+            var pool = Pool(capacity: 2);
+
+            pool.TrySpend();
+            pool.Tick(Cooldown * 0.5f);
+            pool.TrySpend();
+            pool.Refund();
+
+            // The first charge keeps the time it had already served.
+            Assert.That(pool.NextChargeIn, Is.EqualTo(Cooldown * 0.5f).Within(0.001f));
+        }
+
+        [Test]
+        public void ARefundAlsoClearsTheLockout_SoTheRefusedCastCostsNothing()
+        {
+            var pool = Pool(capacity: 2, lockout: 0.5f);
+
+            pool.TrySpend();
+            pool.Refund();
+
+            Assert.That(pool.LockoutRemaining, Is.Zero);
+            Assert.That(pool.CanSpend, Is.True);
+        }
+
+        [Test]
+        public void RefundingAFullPool_DoesNothing()
+        {
+            Assert.That(Pool().Refund(), Is.False);
         }
     }
 }

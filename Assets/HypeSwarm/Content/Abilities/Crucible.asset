@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9536c7afea7407f4b921a26fd8163eb4, type: 3}
+  m_Name: Crucible
+  m_EditorClassIdentifier: HypeSwarm.Shared::HypeSwarm.Shared.Abilities.AbilityDefinition
+  id: ability.pyre_crucible
+  displayName: Crucible
+  role: 4
+  castCost: 3
+  castTime: 0
+  maxChannelDuration: 3
+  cooldown: 40
+  charges: 1
+  chargeLockout: 0
+  targeting: 0
+  range: 0
+  startSteps:
+  - {fileID: 11400000, guid: 77489137d1766a54e9634e5de20c9834, type: 2}
+  steps:
+  - {fileID: 11400000, guid: fcd3f9b0e810de54b85fe03661071f3e, type: 2}
+  - {fileID: 11400000, guid: 1227b2b7507b57e41aa90fc26d006efd, type: 2}

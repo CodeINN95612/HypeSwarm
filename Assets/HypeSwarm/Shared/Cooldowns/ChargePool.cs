@@ -1,13 +1,18 @@
 using System;
 using UnityEngine;
 
-namespace HypeSwarm.Shared.Movement
+namespace HypeSwarm.Shared.Cooldowns
 {
     /// <summary>
-    /// Charges for a mobility ability, each recharging on its own timer, with a lockout between uses.
+    /// Uses of an ability, each recharging on its own timer, with a lockout between them.
     /// </summary>
     /// <remarks>
-    /// The two properties here are both called out in §5.5.3 and both are easy to get subtly wrong.
+    /// Every ability has one of these, including the ordinary single-charge kind — a cooldown is a
+    /// charge pool of one, and having one implementation means haste, charges and the lockout cannot
+    /// disagree about what is ready.
+    ///
+    /// <para>The two properties here are both called out in §5.5.3 for the mobility slot in
+    /// particular, and both are easy to get subtly wrong.</para>
     ///
     /// <para><b>Independent cooldowns.</b> Spending two charges starts two timers that run at the
     /// same time, so both return one cooldown after their own use. The alternative — a single timer
@@ -22,7 +27,7 @@ namespace HypeSwarm.Shared.Movement
     /// is steppable at any rate, which is what lets it be tested in microseconds and re-simulated
     /// during netcode reconciliation later.</para>
     /// </remarks>
-    public sealed class DashChargePool
+    public sealed class ChargePool
     {
         /// <summary>Seconds remaining before each slot returns. Zero means the charge is ready.</summary>
         float[] cooldowns = Array.Empty<float>();
@@ -30,7 +35,7 @@ namespace HypeSwarm.Shared.Movement
         float cooldownDuration;
         float lockoutDuration;
 
-        public DashChargePool(int capacity = 1, float cooldown = 1f, float lockout = 0f)
+        public ChargePool(int capacity = 1, float cooldown = 1f, float lockout = 0f)
         {
             Configure(capacity, cooldown, lockout, startFull: true);
         }
@@ -153,6 +158,44 @@ namespace HypeSwarm.Shared.Movement
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Hands one charge back — the most recently spent one.
+        /// </summary>
+        /// <remarks>
+        /// For a client whose predicted cast the host refused. The client has already spent the charge
+        /// locally so the cooldown reads correctly the instant the key is pressed; when the host says
+        /// no, giving back everything would be a free refill and giving back nothing would charge the
+        /// player for a cast that never happened.
+        ///
+        /// <para>Most recent rather than soonest, because every charge is on the same duration, so the
+        /// one with the longest left is the one just spent.</para>
+        /// </remarks>
+        /// <returns>False when nothing was on cooldown to give back.</returns>
+        public bool Refund()
+        {
+            var newest = -1;
+            var longest = 0f;
+
+            for (var i = 0; i < cooldowns.Length; i++)
+            {
+                if (cooldowns[i] > longest)
+                {
+                    newest = i;
+                    longest = cooldowns[i];
+                }
+            }
+
+            if (newest < 0)
+            {
+                return false;
+            }
+
+            cooldowns[newest] = 0f;
+            LockoutRemaining = 0f;
+
+            return true;
         }
 
         /// <summary>Returns every charge and clears the lockout. For respawns and test setup.</summary>

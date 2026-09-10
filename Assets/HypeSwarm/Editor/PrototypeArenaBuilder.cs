@@ -1,6 +1,9 @@
 using System.IO;
 using HypeSwarm.ClientOnly.Net;
 using HypeSwarm.ClientOnly.Player;
+using HypeSwarm.Shared.Abilities;
+using HypeSwarm.Shared.Combat;
+using HypeSwarm.Shared.Stats;
 using HypeSwarm.Shared.Net;
 using kcp2k;
 using Mirror;
@@ -33,6 +36,7 @@ namespace HypeSwarm.Editor
         const string PrefabPath = "Assets/HypeSwarm/Prefabs/Champion.prefab";
         const string MaterialFolder = "Assets/HypeSwarm/Art/Prototype";
         const string ControlsPath = "Assets/HypeSwarm/ClientOnly/Controls/HypeSwarmControls.inputactions";
+        const string ChampionDefinitionPath = "Assets/HypeSwarm/Content/Champions/Pyre.asset";
 
         /// <summary>Fixed so the arena is the same one every time it is rebuilt or reviewed.</summary>
         const int ArenaSeed = 20260909;
@@ -43,6 +47,18 @@ namespace HypeSwarm.Editor
         /// identical, and speed is most of what is being judged here.
         /// </summary>
         const float GridMetres = 4f;
+
+        /// <summary>
+        /// Training dummies, and enough of them to tell a cone from a circle.
+        /// </summary>
+        /// <remarks>
+        /// Cubes, placed in the scene rather than spawned: Mirror spawns scene network objects itself on
+        /// server start, so they need no spawn logic and no prefab, and the arena stays the only thing
+        /// that decides where they are. The horde proper is Phase 2 step 7 and will not work like this.
+        /// </remarks>
+        const int DummyCount = 6;
+
+        const float DummyRingRadius = 13f;
 
         const float ArenaRadius = 55f;
         const float SpawnClearance = 9f;
@@ -87,6 +103,7 @@ namespace HypeSwarm.Editor
             var prefab = CreateChampionPrefab(champion, accent, trail, reticle);
 
             CreateSpawnPoints();
+            CreateTrainingDummies(accent);
             CreateNetwork(prefab);
             CreateCamera();
 
@@ -98,7 +115,8 @@ namespace HypeSwarm.Editor
             AssetDatabase.Refresh();
 
             Debug.Log($"Prototype arena rebuilt at {ScenePath}. Press Play to host; WASD moves, the " +
-                      "mouse aims, Space or right mouse dashes, F1 shows the network panel.");
+                      "mouse aims, left mouse is the primary, E the secondary, Space or right mouse " +
+                      "dashes, hold R to channel the ultimate, F1 shows the network panel.");
         }
 
         // --- Scene contents -------------------------------------------------------------------
@@ -242,6 +260,42 @@ namespace HypeSwarm.Editor
             });
         }
 
+        /// <summary>
+        /// Something to hit. A ring of cubes with health, on the hostile side.
+        /// </summary>
+        /// <remarks>
+        /// In a ring rather than a line, and inside the obstacle clearance, so a cone aimed from the middle
+        /// catches two or three and a circle catches more — which is the only way to see by eye that a
+        /// shape is the shape it was authored as.
+        /// </remarks>
+        static void CreateTrainingDummies(Material material)
+        {
+            var root = new GameObject("Training Dummies").transform;
+
+            for (var i = 0; i < DummyCount; i++)
+            {
+                var angle = i * 360f / DummyCount + 18f;
+                var direction = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
+
+                var dummy = CreateBox(
+                    $"Dummy {i}",
+                    root,
+                    direction * DummyRingRadius + Vector3.up,
+                    new Vector3(1.1f, 2f, 1.1f),
+                    material);
+
+                dummy.AddComponent<NetworkIdentity>();
+
+                // A stat sheet as well as health, so a slow or a shred applied to a dummy has somewhere to
+                // land — otherwise half of what an ability does is untestable.
+                dummy.AddComponent<ChampionStats>();
+
+                var health = dummy.AddComponent<Health>();
+
+                WireEnum(health, "faction", (int)Faction.Enemies);
+            }
+        }
+
         // --- Champion -------------------------------------------------------------------------
 
         static GameObject CreateChampionPrefab(
@@ -305,6 +359,18 @@ namespace HypeSwarm.Editor
             networkTransform.syncScale = false;
 
             root.AddComponent<ChampionNetworkState>();
+
+            // Stats before health, and health before abilities: health reads the stat sheet for its
+            // maximum, and an ability reads both. None of them depends on Awake order — ChampionStats
+            // builds its sheet on first read — but the inspector reading in this order is a kindness.
+            root.AddComponent<ChampionStats>();
+            root.AddComponent<Health>();
+
+            var abilities = root.AddComponent<AbilityRunner>();
+            Wire(abilities, new (string, Object)[]
+            {
+                ("champion", AssetDatabase.LoadAssetAtPath<ChampionDefinition>(ChampionDefinitionPath))
+            });
 
             var champion = root.AddComponent<ChampionController>();
             Wire(champion, new (string, Object)[]
@@ -384,6 +450,23 @@ namespace HypeSwarm.Editor
                 property.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
             }
 
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>Assigns a serialized enum field, for the same reason as <see cref="Wire"/>.</summary>
+        static void WireEnum(Object target, string field, int value)
+        {
+            var serialized = new SerializedObject(target);
+            var property = serialized.FindProperty(field);
+
+            if (property == null)
+            {
+                Debug.LogError($"{target.GetType().Name} has no serialized field '{field}'.");
+
+                return;
+            }
+
+            property.enumValueIndex = value;
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 

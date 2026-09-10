@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a3f987a5b8fb494488ee8b2e31e7ba31, type: 3}
+  m_Name: Pyre
+  m_EditorClassIdentifier: HypeSwarm.Shared::HypeSwarm.Shared.Abilities.ChampionDefinition
+  id: champion.pyre
+  displayName: Pyre
+  notes: 'The prototype champion, and the proof that an ability is only data. Between the five slots: all four cast costs, a discrete count derived from a stat, a shield that scales from a defensive stat, a channel that pays off with commitment, and a dash that does something besides move.'
+  abilities:
+  - {fileID: 11400000, guid: f57c98c560805ff48ba8356c5d1fd07e, type: 2}
+  - {fileID: 11400000, guid: 5406429cfcb005d4c83b1d38475ea14e, type: 2}
+  - {fileID: 11400000, guid: 816ec41faf8d72247b552243c8f3b182, type: 2}
+  - {fileID: 11400000, guid: ca72e049cbed72d409b3513a725eaca7, type: 2}
+  - {fileID: 11400000, guid: cc400a8f21590464ba6cdd7f6b613d6d, type: 2}

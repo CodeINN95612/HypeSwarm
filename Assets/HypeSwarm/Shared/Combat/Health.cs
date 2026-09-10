@@ -1,4 +1,5 @@
 using System;
+using HypeSwarm.Shared.Abilities;
 using HypeSwarm.Shared.Stats;
 using HypeSwarm.Shared.Tuning;
 using Mirror;
@@ -27,8 +28,14 @@ namespace HypeSwarm.Shared.Combat
     /// </remarks>
     [AddComponentMenu("Hype Swarm/Health")]
     [DisallowMultipleComponent]
-    public sealed class Health : NetworkBehaviour, IDamageable
+    public sealed class Health : NetworkBehaviour, ICombatant
     {
+        [SerializeField]
+        [SyncVar]
+        [Tooltip("Which side this is on. Players for a champion and anything it summons, Enemies for " +
+                 "the horde, Neutral for something that is only hit on purpose.")]
+        Faction faction = Faction.Players;
+
         [SyncVar(hook = nameof(OnNumberChanged))]
         float networkCurrent = HealthPool.MinimumMax;
 
@@ -59,6 +66,24 @@ namespace HypeSwarm.Shared.Combat
 
         public bool IsDead => networkDead;
 
+        /// <summary>Which side this is on. Authored on the prefab, replicated so clients can aim too.</summary>
+        public Faction Faction => faction;
+
+        /// <summary>Network id, for the damage packets this entity sends.</summary>
+        public uint Id => netId;
+
+        /// <summary>Where this is. What targeting measures distance against.</summary>
+        public Vector3 Position => transform.position;
+
+        /// <summary>
+        /// The stats this entity scales from, on every machine.
+        /// </summary>
+        /// <remarks>
+        /// Resolved in <c>Awake</c> rather than on spawn, because a client has to resolve targets for
+        /// its own predicted casts and a null sheet would make every coefficient read as its flat part.
+        /// </remarks>
+        public StatSheet Stats => sheet;
+
         /// <summary>The numbers moved. Raised on every machine, which is what a health bar needs.</summary>
         public event Action Changed;
 
@@ -71,13 +96,27 @@ namespace HypeSwarm.Shared.Combat
         void Awake()
         {
             TryGetComponent(out championStats);
+
+            // ChampionStats builds its sheet lazily, so this does not depend on which Awake Unity ran
+            // first — component order inside a GameObject is undefined, and a bug that depends on it
+            // reproduces on one machine in five.
+            sheet = championStats != null ? championStats.Sheet : new StatSheet(GameTuning.Stats);
         }
+
+        /// <summary>
+        /// Joins the set of things abilities can find.
+        /// </summary>
+        /// <remarks>
+        /// Enable and disable rather than spawn and despawn, so this works the same for a scene-placed
+        /// dummy, a spawned champion, and a pooled enemy later on. Registration is local to each
+        /// machine: the host needs it to resolve damage and the owner needs it to predict (§11).
+        /// </remarks>
+        void OnEnable() => CombatantWorld.Shared.Register(this);
+
+        void OnDisable() => CombatantWorld.Shared.Unregister(this);
 
         public override void OnStartServer()
         {
-            // After Awake on every component, so the champion sheet exists by now.
-            sheet = championStats != null ? championStats.Sheet : new StatSheet(GameTuning.Stats);
-
             pool = new HealthPool(sheet.Get(StatId.MaxHealth));
             pool.Changed += Publish;
             pool.Damaged += OnPoolDamaged;
@@ -166,6 +205,28 @@ namespace HypeSwarm.Shared.Combat
         public bool RemoveShield(ModifierSource source)
         {
             return pool != null && pool.Shields.Remove(source);
+        }
+
+        /// <summary>
+        /// Applies timed stat modifiers — a slow, a shred, a defensive stance.
+        /// </summary>
+        /// <remarks>
+        /// Forwarded to <see cref="ChampionStats"/>, which is what replicates them, and refused when
+        /// there is none. Returning false rather than applying them to the local sheet is the honest
+        /// answer: a modifier only this machine knows about is a number that differs per machine, which
+        /// is the one thing the stat design exists to prevent.
+        /// </remarks>
+        [Server]
+        public bool ApplyModifiers(ModifierSource source, float duration, StatModifier[] modifiers)
+        {
+            if (championStats == null || modifiers == null || modifiers.Length == 0)
+            {
+                return false;
+            }
+
+            championStats.ApplyBuff(source, duration, modifiers);
+
+            return true;
         }
 
         /// <summary>Brings this entity back at the tuned share of maximum health.</summary>
@@ -285,6 +346,28 @@ namespace HypeSwarm.Shared.Combat
 
         [Command]
         public void CmdDebugRevive() => Revive();
+
+        /// <summary>
+        /// Brings every hostile back, so a training dummy can be killed more than once in a session.
+        /// </summary>
+        /// <remarks>
+        /// Reaches across entities, which nothing in the real game does or should: a command is
+        /// authorised by owning the object it is called on, and this one is called on your own champion to
+        /// affect somebody else's. Compiled out of a release build for exactly that reason.
+        /// </remarks>
+        [Command]
+        public void CmdDebugReviveHostiles()
+        {
+            var all = CombatantWorld.Shared.All;
+
+            for (var i = 0; i < all.Count; i++)
+            {
+                if (all[i] is Health health && health.faction != Faction.Players)
+                {
+                    health.Revive();
+                }
+            }
+        }
 #endif
     }
 }

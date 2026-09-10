@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using HypeSwarm.Shared.Abilities;
 using HypeSwarm.Shared.Content;
 using HypeSwarm.Shared.Tuning;
 using UnityEditor;
@@ -92,7 +93,13 @@ namespace HypeSwarm.Editor
             // a key nobody asked for is a key that cannot be reported as missing.
             tuningIssues.AddRange(ContentValidation.ValidateStats(tuning));
             tuningIssues.AddRange(ContentValidation.ValidateCombat(tuning));
+            tuningIssues.AddRange(ContentValidation.ValidateAbilitySettings(tuning));
             tuningIssues.AddRange(ContentValidation.ValidateTuning(tuning, loadErrors));
+
+            // Abilities are checked against the tuned numbers, not the compiled ones: the rooted-cast
+            // ceiling an ability has to respect is whatever the config file says it is.
+            contentIssues.AddRange(
+                ContentValidation.ValidateAbilities(allDefinitions, AbilitySettings.FromTuning(tuning)));
 
             Repaint();
         }

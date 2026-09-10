@@ -67,3 +67,11 @@ stat.slow_resistance.soft_cap    = 100
 
 combat.regen_delay               = 5
 combat.revive_health_fraction    = 0.5
+
+# --- Abilities -----------------------------------------------------------------------
+# passive_tick_interval is a performance number, not a balance one: passive effects are
+# authored as rates and multiplied by it, so retuning it for frame time does not change
+# what a passive does per second.
+ability.passive_tick_interval    = 0.25
+ability.slowed_cast_speed        = 0.4
+ability.rooted_cast_ceiling      = 0.6

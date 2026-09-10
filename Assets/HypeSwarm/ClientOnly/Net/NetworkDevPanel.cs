@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using HypeSwarm.ClientOnly.Steam;
+using HypeSwarm.Shared.Abilities;
 using HypeSwarm.Shared.Combat;
 using HypeSwarm.Shared.Net;
 using HypeSwarm.Shared.Stats;
@@ -48,6 +49,7 @@ namespace HypeSwarm.ClientOnly.Net
         IReadOnlyList<SteamFriend> friends = Array.Empty<SteamFriend>();
         ChampionStats localStats;
         Health localHealth;
+        AbilityRunner localAbilities;
 
         /// <summary>
         /// The handful worth watching while testing. Not the stat screen — that is Phase 5 (§20).
@@ -94,7 +96,7 @@ namespace HypeSwarm.ClientOnly.Net
                 return;
             }
 
-            using (new GUILayout.AreaScope(new Rect(10f, 10f, 320f, 760f), GUIContent.none, GUI.skin.box))
+            using (new GUILayout.AreaScope(new Rect(10f, 10f, 320f, 900f), GUIContent.none, GUI.skin.box))
             {
                 GUILayout.Label($"<b>Hype Swarm — network ({toggleKey} hides)</b>", RichLabel());
                 GUILayout.Label(bootstrap == null ? "no bootstrap" : bootstrap.Selection.ToString(), Wrapped());
@@ -181,6 +183,7 @@ namespace HypeSwarm.ClientOnly.Net
             }
 
             DrawHealth();
+            DrawAbilities();
             DrawStats();
 
             GUILayout.Space(6f);
@@ -345,6 +348,129 @@ namespace HypeSwarm.ClientOnly.Net
 #endif
         }
 
+        /// <summary>
+        /// The five slots, what they cost, and whether they are ready.
+        /// </summary>
+        /// <remarks>
+        /// Scaffolding for the same reason the rest of this panel is: the exit criterion for this step is
+        /// an ability authored in the inspector working in multiplayer, and watching that needs the
+        /// cooldown, the charges and the cast state visible somewhere. The real HUD is Phase 5 (§20).
+        ///
+        /// <para>Read off the <i>client's own</i> book, which is the point worth noticing while testing:
+        /// these numbers move the instant a key goes down, before the host has confirmed anything, and a
+        /// refusal is what puts a charge back (§5.5.1).</para>
+        /// </remarks>
+        void DrawAbilities()
+        {
+            var runner = LocalAbilities();
+
+            GUILayout.Space(6f);
+
+            if (runner == null || runner.Book == null || runner.Book.Count == 0)
+            {
+                GUILayout.Label("<b>Abilities</b> — none authored on this champion", RichLabel());
+
+                return;
+            }
+
+            var book = runner.Book;
+
+            GUILayout.Label(
+                book.IsCasting
+                    ? $"<b>Abilities</b> — casting {book.Casting.Definition.DisplayName} ({Progress(book)})"
+                    : "<b>Abilities</b>",
+                RichLabel());
+
+            for (var slot = 0; slot < book.Count; slot++)
+            {
+                DrawAbility(book[slot]);
+            }
+
+            DrawNearestEnemy();
+        }
+
+        static string Progress(AbilityBook book)
+        {
+            return book.IsChannelling
+                ? $"held {book.ChannelElapsed:0.0}s"
+                : $"{book.CastProgress * 100f:0}%";
+        }
+
+        static void DrawAbility(AbilityInstance instance)
+        {
+            if (instance?.Definition == null)
+            {
+                return;
+            }
+
+            var definition = instance.Definition;
+
+            var state = definition.Role == AbilityRole.Passive
+                ? "pulsing"
+                : instance.IsReady
+                    ? $"ready ({instance.ChargesAvailable}/{definition.Charges})"
+                    : $"{instance.CooldownRemaining:0.0}s";
+
+            GUILayout.Label($"  {definition.Role} — {definition.DisplayName} · {definition.CastCost} · {state}");
+        }
+
+        /// <summary>
+        /// What is closest and how much of it is left. The readout a training dummy needs: damage landing
+        /// on something else is otherwise invisible from inside your own champion.
+        /// </summary>
+        void DrawNearestEnemy()
+        {
+            var player = NetworkClient.localPlayer;
+
+            if (player == null)
+            {
+                return;
+            }
+
+            var position = player.transform.position;
+            Health nearest = null;
+            var distance = float.PositiveInfinity;
+
+            var all = CombatantWorld.Shared.All;
+
+            for (var i = 0; i < all.Count; i++)
+            {
+                if (all[i] is not Health health || health.Faction == Faction.Players)
+                {
+                    continue;
+                }
+
+                var candidate = Vector3.Distance(position, health.Position);
+
+                if (candidate < distance)
+                {
+                    nearest = health;
+                    distance = candidate;
+                }
+            }
+
+            if (nearest == null)
+            {
+                GUILayout.Label($"  nothing hostile nearby ({all.Count} combatants)");
+
+                return;
+            }
+
+            GUILayout.Label(
+                nearest.IsDead
+                    ? $"  nearest target — dead, {distance:0.#}m away"
+                    : $"  nearest target — {nearest.Current:0.#} / {nearest.Max:0.#} at {distance:0.#}m");
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            var local = LocalHealth();
+
+            if (local != null && GUILayout.Button("Revive training dummies"))
+            {
+                local.CmdDebugReviveHostiles();
+            }
+#endif
+        }
+
         static float Clamped(float fraction)
         {
             return fraction < 0f ? 0f : fraction > 1f ? 1f : fraction;
@@ -362,6 +488,20 @@ namespace HypeSwarm.ClientOnly.Net
             localHealth = player == null ? null : player.GetComponent<Health>();
 
             return localHealth;
+        }
+
+        AbilityRunner LocalAbilities()
+        {
+            if (localAbilities != null)
+            {
+                return localAbilities;
+            }
+
+            var player = NetworkClient.localPlayer;
+
+            localAbilities = player == null ? null : player.GetComponent<AbilityRunner>();
+
+            return localAbilities;
         }
 
         static void DrawStat(StatSheet sheet, StatId stat)

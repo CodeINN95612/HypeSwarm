@@ -38,8 +38,18 @@ namespace HypeSwarm.Shared.Stats
 
         StatSheet sheet;
 
-        /// <summary>The resolved stats on this machine. Read it; the server is what writes.</summary>
-        public StatSheet Sheet => sheet;
+        /// <summary>
+        /// The resolved stats on this machine. Read it; the server is what writes.
+        /// </summary>
+        /// <remarks>
+        /// Built on first read rather than in <c>Awake</c>. Unity does not order <c>Awake</c> between
+        /// components on one GameObject, and <see cref="Combat.Health"/> wants this sheet in its own
+        /// — a bug that depends on which ran first reproduces on one machine in five.
+        ///
+        /// <para>The tuned catalog, not the compiled defaults: soft caps and starting values are
+        /// balance, and balance lives in the config file (§13.3).</para>
+        /// </remarks>
+        public StatSheet Sheet => sheet ??= new StatSheet(GameTuning.Stats);
 
         /// <summary>
         /// The sheet was rebuilt from a change that arrived over the network. Cheaper to subscribe
@@ -49,9 +59,8 @@ namespace HypeSwarm.Shared.Stats
 
         void Awake()
         {
-            // The tuned catalog, not the compiled defaults: soft caps and starting values are
-            // balance, and balance lives in the config file (§13.3).
-            sheet = new StatSheet(GameTuning.Stats);
+            // Touch it so the sheet exists before anything replicates into it.
+            _ = Sheet;
 
             replicated.Callback += OnListChanged;
 

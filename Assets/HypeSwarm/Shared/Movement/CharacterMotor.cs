@@ -1,4 +1,5 @@
 using System;
+using HypeSwarm.Shared.Cooldowns;
 using UnityEngine;
 
 namespace HypeSwarm.Shared.Movement
@@ -34,7 +35,7 @@ namespace HypeSwarm.Shared.Movement
         public CharacterMotor(MovementSettings settings = null)
         {
             this.settings = settings ?? new MovementSettings();
-            Charges = new DashChargePool(
+            Charges = new ChargePool(
                 this.settings.DashCharges,
                 this.settings.DashCooldown,
                 this.settings.DashLockout);
@@ -51,7 +52,7 @@ namespace HypeSwarm.Shared.Movement
             set => settings = value ?? new MovementSettings();
         }
 
-        public DashChargePool Charges { get; }
+        public ChargePool Charges { get; }
 
         /// <summary>
         /// Top speed multiplier, from the move speed stat and later from slows. One is unmodified.
@@ -142,6 +143,38 @@ namespace HypeSwarm.Shared.Movement
             }
 
             return displacement;
+        }
+
+        /// <summary>
+        /// Starts a dash now, without asking the charge pool.
+        /// </summary>
+        /// <remarks>
+        /// <b>This is how the mobility ability dashes</b> (§5.5.3). The gate lives on the ability —
+        /// charges, cooldown and lockout are all on its <c>AbilityInstance</c>, because an augment that
+        /// changes them should change the ability rather than the motor, and because the cooldown the
+        /// HUD draws has to be the one the cast actually checked.
+        ///
+        /// <para>The <see cref="Charges"/> pool below is the other path: <see cref="Step"/> still spends
+        /// it for <see cref="MovementInput.DashPressed"/>, which is what the headless simulator and the
+        /// motor's own tests use, and what a champion with no authored mobility ability falls back to.
+        /// Only one of the two is ever live on a given entity — the controller stops forwarding the dash
+        /// input the moment an ability owns the slot — so the two gates cannot disagree.</para>
+        /// </remarks>
+        /// <param name="direction">
+        /// Planar direction, or zero for the motor's own choice: the direction of travel, falling back
+        /// to facing.
+        /// </param>
+        /// <returns>False when a dash is already running.</returns>
+        public bool TryDash(Vector2 direction)
+        {
+            if (IsDashing)
+            {
+                return false;
+            }
+
+            StartDash(direction);
+
+            return true;
         }
 
         /// <summary>

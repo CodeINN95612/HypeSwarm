@@ -14,3 +14,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: HypeSwarm.Shared::HypeSwarm.Shared.Content.ContentLibrary
   definitions:
   - {fileID: 11400000, guid: cfe72c4ed89274046871377f119f0dc4, type: 2}
+  - {fileID: 11400000, guid: 4a16adf6b24803a459074c683f9bd7a4, type: 2}
+  - {fileID: 11400000, guid: c914a5fa9c19cd44193d856bd8a7e0ca, type: 2}
+  - {fileID: 11400000, guid: f57c98c560805ff48ba8356c5d1fd07e, type: 2}
+  - {fileID: 11400000, guid: 99503890713ab2f40a5a9378b045b425, type: 2}
+  - {fileID: 11400000, guid: 7a31cd34dbfccc3439873e59d58ee998, type: 2}
+  - {fileID: 11400000, guid: 5406429cfcb005d4c83b1d38475ea14e, type: 2}
+  - {fileID: 11400000, guid: 5d972df629e144643a40ef647d01155f, type: 2}
+  - {fileID: 11400000, guid: 0d805b54afded2e4fadbd90d7899e7a7, type: 2}
+  - {fileID: 11400000, guid: 6e065eaab40db2f4a969fdb90e4e4591, type: 2}
+  - {fileID: 11400000, guid: 816ec41faf8d72247b552243c8f3b182, type: 2}
+  - {fileID: 11400000, guid: 988957d79c2e51b4989ddf07024eb69d, type: 2}
+  - {fileID: 11400000, guid: b4bd96b03578ff4499a7cdc47f41fd9e, type: 2}
+  - {fileID: 11400000, guid: c3827019efe6ef749b335f8daf122e71, type: 2}
+  - {fileID: 11400000, guid: ca72e049cbed72d409b3513a725eaca7, type: 2}
+  - {fileID: 11400000, guid: 77489137d1766a54e9634e5de20c9834, type: 2}
+  - {fileID: 11400000, guid: fcd3f9b0e810de54b85fe03661071f3e, type: 2}
+  - {fileID: 11400000, guid: 1227b2b7507b57e41aa90fc26d006efd, type: 2}
+  - {fileID: 11400000, guid: cc400a8f21590464ba6cdd7f6b613d6d, type: 2}
+  - {fileID: 11400000, guid: 13a8b2324228cd94aaa61f7673489981, type: 2}
