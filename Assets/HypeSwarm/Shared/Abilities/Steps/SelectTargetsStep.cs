@@ -69,6 +69,18 @@ namespace HypeSwarm.Shared.Abilities.Steps
         /// <summary>The cap and its next breakpoint, for the HUD (§5.6.5).</summary>
         public StatStep MaxTargets => maxTargets;
 
+        /// <summary>
+        /// Who this looks for. Read-only exposure of authored data, for presentation: the shape a cast
+        /// draws on the ground is this step's shape, so the drawing is always the real hit area.
+        /// </summary>
+        public TargetFaction Wanted => wanted;
+
+        public ShapeOrigin Origin => origin;
+
+        public float Radius => radius;
+
+        public float ConeDegrees => coneDegrees;
+
         public override void Execute(AbilityContext context)
         {
             if (context?.World == null || context.Caster == null)

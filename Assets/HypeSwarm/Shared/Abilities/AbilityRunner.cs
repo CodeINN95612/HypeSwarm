@@ -62,14 +62,31 @@ namespace HypeSwarm.Shared.Abilities
         public float MovementMultiplier =>
             book == null ? 1f : book.MovementMultiplier(GameTuning.Abilities.SlowedCastSpeed);
 
-        /// <summary>A cast started on this machine — ours, or the host's copy of ours.</summary>
-        public event Action<AbilityInstance> CastStarted;
+        /// <summary>
+        /// A cast began, on every machine that should show it: the owner the instant the key goes down,
+        /// the host from its own book, everyone else when the host says so. <b>Presentation only</b> —
+        /// the telegraph of a wind-up, the ring a channel grows (§12).
+        /// </summary>
+        /// <remarks>
+        /// One event for all three rather than a separate one for other players' casts, so a presenter
+        /// written against it draws every champion the same way and cannot forget the other four. Raised
+        /// exactly once per cast per machine: the owner does not also receive the host's broadcast, and
+        /// the host does not also receive its own.
+        /// </remarks>
+        public event Action<AbilityInstance, AbilityAim> Began;
 
         /// <summary>
-        /// Somebody else's champion cast something. <b>For presentation only</b>: nothing about the
-        /// outcome arrives this way, because the outcome is the host's and is replicated as its effects.
+        /// A cast resolved. The float is how long a channel was held. The same once-per-machine rule as
+        /// <see cref="Began"/>.
         /// </summary>
-        public event Action<AbilityInstance> CastObserved;
+        /// <remarks>
+        /// What the cast did is not in here. Damage, shields and modifiers are replicated by the systems
+        /// that own them; this says only where and when, which is all a shape on the ground needs.
+        /// </remarks>
+        public event Action<AbilityInstance, AbilityAim, float> Landed;
+
+        /// <summary>A cast was cut short — by death, or by the host refusing it — and will not land.</summary>
+        public event Action<AbilityInstance> Interrupted;
 
         /// <summary>The host refused a cast this client had already started. The charge has been returned.</summary>
         public event Action<AbilityInstance> CastRefused;
@@ -82,6 +99,7 @@ namespace HypeSwarm.Shared.Abilities
             book = new AbilityBook(champion != null ? champion.Abilities : null);
             book.CastStarted += OnCastStarted;
             book.CastResolved += OnCastResolved;
+            book.CastInterrupted += OnCastInterrupted;
             book.PassivePulse += OnPassivePulse;
 
             if (champion == null)
@@ -99,6 +117,7 @@ namespace HypeSwarm.Shared.Abilities
 
             book.CastStarted -= OnCastStarted;
             book.CastResolved -= OnCastResolved;
+            book.CastInterrupted -= OnCastInterrupted;
             book.PassivePulse -= OnPassivePulse;
         }
 
@@ -276,7 +295,6 @@ namespace HypeSwarm.Shared.Abilities
                 return;
             }
 
-            RpcCastObserved(slot);
         }
 
         /// <summary>
@@ -323,21 +341,75 @@ namespace HypeSwarm.Shared.Abilities
         /// them. Running steps here would mean four machines each deciding what a fifth one hit.
         /// </remarks>
         [ClientRpc(includeOwner = false)]
-        void RpcCastObserved(int slot)
+        void RpcBegan(int slot, Vector3 aimPoint)
         {
+            // The host raised this from its own book already, and its local client is the same machine.
+            if (isServer)
+            {
+                return;
+            }
+
             var instance = book?[slot];
 
             if (instance != null)
             {
-                CastObserved?.Invoke(instance);
+                Began?.Invoke(instance, Observed(aimPoint));
             }
+        }
+
+        [ClientRpc(includeOwner = false)]
+        void RpcLanded(int slot, Vector3 aimPoint, float channelDuration)
+        {
+            if (isServer)
+            {
+                return;
+            }
+
+            var instance = book?[slot];
+
+            if (instance != null)
+            {
+                Landed?.Invoke(instance, Observed(aimPoint), channelDuration);
+            }
+        }
+
+        [ClientRpc(includeOwner = false)]
+        void RpcInterrupted(int slot)
+        {
+            if (isServer)
+            {
+                return;
+            }
+
+            var instance = book?[slot];
+
+            if (instance != null)
+            {
+                Interrupted?.Invoke(instance);
+            }
+        }
+
+        /// <summary>
+        /// The host's aim point, seen from this machine. The direction is rebuilt from where this machine
+        /// has the caster, which is where its shape should be drawn from.
+        /// </summary>
+        AbilityAim Observed(Vector3 aimPoint)
+        {
+            return AbilityAim.FromPoint(transform.position, aimPoint, FacingFallback());
         }
 
         // --- Running a cast -----------------------------------------------------------------
 
         void OnCastStarted(AbilityInstance instance)
         {
-            CastStarted?.Invoke(instance);
+            Began?.Invoke(instance, activeAim);
+
+            // From here rather than from the command handler, so the host's own casts reach the other
+            // players as well as the casts it receives from them.
+            if (isServer)
+            {
+                RpcBegan(instance.Slot, activeAim.Point);
+            }
 
             // Before the cast time, not after it: these are the steps that have to happen during the
             // commitment rather than as its payoff — the guard a channel grants while it is held.
@@ -347,6 +419,23 @@ namespace HypeSwarm.Shared.Abilities
         void OnCastResolved(AbilityInstance instance, float channelDuration)
         {
             Run(instance, instance.Definition.Steps, activeAim, channelDuration, 0f);
+
+            Landed?.Invoke(instance, activeAim, channelDuration);
+
+            if (isServer)
+            {
+                RpcLanded(instance.Slot, activeAim.Point, channelDuration);
+            }
+        }
+
+        void OnCastInterrupted(AbilityInstance instance)
+        {
+            Interrupted?.Invoke(instance);
+
+            if (isServer)
+            {
+                RpcInterrupted(instance.Slot);
+            }
         }
 
         void OnPassivePulse(AbilityInstance instance, float interval)

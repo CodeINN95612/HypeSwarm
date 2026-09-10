@@ -1,6 +1,7 @@
 using System.IO;
 using HypeSwarm.ClientOnly.Net;
 using HypeSwarm.ClientOnly.Player;
+using HypeSwarm.ClientOnly.Presentation;
 using HypeSwarm.Shared.Abilities;
 using HypeSwarm.Shared.Combat;
 using HypeSwarm.Shared.Stats;
@@ -97,13 +98,16 @@ namespace HypeSwarm.Editor
             var trail = CreateUnlitMaterial("Trail", new Color(0.55f, 0.85f, 1f));
             var reticle = CreateUnlitMaterial("Reticle", new Color(1f, 0.78f, 0.28f));
 
+            // White, because every shape tints it: one material for every outline an ability draws.
+            var shapes = CreateUnlitMaterial("Shapes", Color.white);
+
             CreateLighting();
             CreateArena(ground, obstacle);
 
-            var prefab = CreateChampionPrefab(champion, accent, trail, reticle);
+            var prefab = CreateChampionPrefab(champion, accent, trail, reticle, shapes);
 
             CreateSpawnPoints();
-            CreateTrainingDummies(accent);
+            CreateTrainingDummies(accent, shapes);
             CreateNetwork(prefab);
             CreateCamera();
 
@@ -268,7 +272,7 @@ namespace HypeSwarm.Editor
         /// catches two or three and a circle catches more — which is the only way to see by eye that a
         /// shape is the shape it was authored as.
         /// </remarks>
-        static void CreateTrainingDummies(Material material)
+        static void CreateTrainingDummies(Material material, Material shapes)
         {
             var root = new GameObject("Training Dummies").transform;
 
@@ -293,6 +297,11 @@ namespace HypeSwarm.Editor
                 var health = dummy.AddComponent<Health>();
 
                 WireEnum(health, "faction", (int)Faction.Enemies);
+
+                // So a hit, a slow and a death are visible on the dummy itself, on every machine.
+                var feedback = dummy.AddComponent<CombatantFeedbackPresenter>();
+                Wire(feedback, new (string, Object)[] { ("lineMaterial", shapes) });
+                WireArray(feedback, "renderers", new Object[] { dummy.GetComponent<MeshRenderer>() });
             }
         }
 
@@ -302,7 +311,8 @@ namespace HypeSwarm.Editor
             Material body,
             Material accent,
             Material trailMaterial,
-            Material reticleMaterial)
+            Material reticleMaterial,
+            Material shapesMaterial)
         {
             var root = new GameObject("Champion");
 
@@ -397,6 +407,15 @@ namespace HypeSwarm.Editor
                 ("visual", capsule.transform),
                 ("trail", trail)
             });
+
+            // What the abilities do, drawn (§12). On every champion, not just the local one: the runner
+            // raises the same events for the other four players' casts.
+            var casts = root.AddComponent<AbilityCastPresenter>();
+            Wire(casts, new (string, Object)[] { ("lineMaterial", shapesMaterial) });
+
+            var combat = root.AddComponent<CombatantFeedbackPresenter>();
+            Wire(combat, new (string, Object)[] { ("lineMaterial", shapesMaterial) });
+            WireArray(combat, "renderers", new Object[] { capsule.GetComponent<MeshRenderer>() });
 
             EnsureFolder(Path.GetDirectoryName(PrefabPath));
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);

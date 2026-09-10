@@ -43,6 +43,12 @@ The five slots come from the **Pyre** champion asset, not from code: the panel u
 with their cooldowns and cast costs, and shows the health of whatever hostile is nearest so damage
 landing on a dummy is visible from inside your own champion.
 
+Casts are drawn as placeholder outlines on the ground, taken from each ability's own targeting shape:
+orange for what hits enemies, blue for what finds allies, a dim telegraph during a wind-up, a growing
+ring while the ultimate is held, and a faint circle for the passive's reach. A real hit flashes the
+target white (a burn ticking for a sliver of health does not); slowed things turn blue, dead things go dark, and a shield is a blue ring at your feet. No
+particles or art yet — that is the art pass, and it replaces the drawing, not the events behind it.
+
 Feel is tuned on the **Champion** prefab, under Movement. Those fields are live during Play, which
 is the point of them being there; when a number is right, copy it back with the component's context
 menu before leaving Play Mode.
